@@ -1,0 +1,23 @@
+# Binários e artefatos de build
+/bin/
+/dist/
+*.exe
+*.test
+*.out
+
+# Cobertura
+coverage.out
+coverage.html
+
+# Editores
+.vscode/
+.idea/
+*.swp
+*~
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Logs locais
+*.log

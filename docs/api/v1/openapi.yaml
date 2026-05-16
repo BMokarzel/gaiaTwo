@@ -1,0 +1,571 @@
+openapi: 3.0.3
+info:
+  title: CostEngine Architecture API
+  version: "1.0.0"
+  description: |
+    REST read-only sobre o grafo de inteligência arquitetural do CostEngine
+    (F-014). Cobre lookup, vizinhança k-hop, histórico, busca textual e
+    enumeração de caminhos.
+
+    Convenções:
+      - Toda resposta carrega `X-Request-ID` (echo do header de entrada se
+        válido, geração nova caso contrário).
+      - Erros usam o envelope `ErrorBody` com `code` machine-readable.
+      - Tenant é resolvido pelo middleware via `X-Tenant-ID`. Em modo
+        `--tenant-required`, ausência do header devolve 401.
+      - Paginação cursor-based em `/search`. Cursor é opaco; alterar a
+        query entre páginas invalida o cursor (ADR-001).
+      - Caps de proteção: `depth ≤ 3` (neighbors), `max_hops ≤ 5` (paths),
+        resultados de neighbors ≤ 100.
+servers:
+  - url: http://localhost:8080
+    description: Local dev (memory backend)
+
+security:
+  - tenantHeader: []
+
+tags:
+  - name: meta
+  - name: nodes
+  - name: search
+  - name: paths
+  - name: org
+
+paths:
+  /healthz:
+    get:
+      tags: [meta]
+      summary: Liveness probe
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  version: { type: string, example: v1 }
+
+  /v1/architecture/nodes/{urn}:
+    get:
+      tags: [nodes]
+      summary: Obtém um nó (corrente ou em ponto do passado).
+      parameters:
+        - $ref: "#/components/parameters/URNPath"
+        - $ref: "#/components/parameters/AsOf"
+      responses:
+        "200":
+          description: Versão do nó.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NodeView" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /v1/architecture/nodes/{urn}/neighbors:
+    get:
+      tags: [nodes]
+      summary: Vizinhança k-hop com filtros.
+      parameters:
+        - $ref: "#/components/parameters/URNPath"
+        - in: query
+          name: depth
+          schema: { type: integer, default: 1, minimum: 1, maximum: 3 }
+        - in: query
+          name: dir
+          description: Direção do traversal.
+          schema:
+            type: string
+            enum: [in, out, any]
+            default: any
+        - in: query
+          name: edge_types
+          description: |
+            CSV de tipos de aresta (whitelist do core: CONTAINS, DEPENDS_ON,
+            RUNS_ON, ...). Tipos desconhecidos são silenciosamente ignorados
+            para forward-compat.
+          schema: { type: string }
+        - $ref: "#/components/parameters/AsOf"
+      responses:
+        "200":
+          description: Vizinhança.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  edges:
+                    type: array
+                    items: { $ref: "#/components/schemas/EdgeView" }
+                  nodes:
+                    type: array
+                    items: { $ref: "#/components/schemas/NodeView" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /v1/architecture/nodes/{urn}/history:
+    get:
+      tags: [nodes]
+      summary: Versões do nó em ordem cronológica decrescente.
+      parameters:
+        - $ref: "#/components/parameters/URNPath"
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50, minimum: 1, maximum: 500 }
+      responses:
+        "200":
+          description: Lista de versões.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  versions:
+                    type: array
+                    items: { $ref: "#/components/schemas/NodeView" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/architecture/search:
+    get:
+      tags: [search]
+      summary: Busca textual em URN + campos visíveis de Node.
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema: { type: string, minLength: 1 }
+        - in: query
+          name: kind
+          description: Filtro estrito por Kind (compute, service, ...).
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50, minimum: 1, maximum: 200 }
+        - in: query
+          name: cursor
+          description: Continuação opaca (S-005); alterar `q`/`kind` invalida.
+          schema: { type: string }
+      responses:
+        "200":
+          description: Página de resultados.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items: { $ref: "#/components/schemas/NodeView" }
+                  limit: { type: integer }
+                  next_cursor:
+                    type: string
+                    description: vazio quando não há próxima página.
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /v1/architecture/paths:
+    get:
+      tags: [paths]
+      summary: Caminhos entre dois URNs (direcionado, capado).
+      parameters:
+        - in: query
+          name: from
+          required: true
+          schema: { type: string }
+        - in: query
+          name: to
+          required: true
+          schema: { type: string }
+        - in: query
+          name: max_hops
+          schema: { type: integer, default: 3, minimum: 1, maximum: 5 }
+        - in: query
+          name: edge_types
+          schema: { type: string }
+        - $ref: "#/components/parameters/AsOf"
+      responses:
+        "200":
+          description: |
+            Lista de caminhos (vazia se inalcançável). Ordem: tamanho asc,
+            URNs lexicograficamente — máximo 100 caminhos.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  paths:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        hops: { type: integer }
+                        urns:
+                          type: array
+                          items: { type: string }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /v1/teams:
+    get:
+      tags: [org]
+      summary: Lista times com contagens transitivas (squads, pessoas).
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/AsOf"
+        - $ref: "#/components/parameters/IncludeInactive"
+      responses:
+        "200":
+          description: Página de times.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items: { $ref: "#/components/schemas/TeamView" }
+                  limit: { type: integer }
+                  next_cursor: { type: string }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /v1/teams/{urn}:
+    get:
+      tags: [org]
+      summary: Detalhe de um Team com `squads[]` e contagens.
+      parameters:
+        - $ref: "#/components/parameters/URNPath"
+        - $ref: "#/components/parameters/AsOf"
+        - $ref: "#/components/parameters/IncludeInactive"
+      responses:
+        "200":
+          description: Team.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TeamView" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /v1/teams/{urn}/squads:
+    get:
+      tags: [org]
+      summary: Squads do team, paginado.
+      parameters:
+        - $ref: "#/components/parameters/URNPath"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/AsOf"
+        - $ref: "#/components/parameters/IncludeInactive"
+      responses:
+        "200":
+          description: Página de squads.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items: { $ref: "#/components/schemas/SquadView" }
+                  limit: { type: integer }
+                  next_cursor: { type: string }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/squads/{urn}:
+    get:
+      tags: [org]
+      summary: Detalhe de um Squad com `member_count` e `team_urn`.
+      parameters:
+        - $ref: "#/components/parameters/URNPath"
+        - $ref: "#/components/parameters/AsOf"
+        - $ref: "#/components/parameters/IncludeInactive"
+      responses:
+        "200":
+          description: Squad.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SquadView" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /v1/squads/{urn}/members:
+    get:
+      tags: [org]
+      summary: Pessoas do squad. PII mascarada (F-010 D8).
+      parameters:
+        - $ref: "#/components/parameters/URNPath"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/AsOf"
+        - $ref: "#/components/parameters/IncludeInactive"
+      responses:
+        "200":
+          description: Página de membros.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items: { $ref: "#/components/schemas/PersonView" }
+                  limit: { type: integer }
+                  next_cursor: { type: string }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/people/{urn}:
+    get:
+      tags: [org]
+      summary: |
+        Perfil de Person com `team_urn` transitivo. Email sempre vem
+        mascarado (`a***@d***.com`).
+      parameters:
+        - $ref: "#/components/parameters/URNPath"
+        - $ref: "#/components/parameters/AsOf"
+        - $ref: "#/components/parameters/IncludeInactive"
+      responses:
+        "200":
+          description: Person.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PersonView" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /v1/people/{urn}/reports:
+    get:
+      tags: [org]
+      summary: |
+        Árvore de subordinados (ReportsTo) com profundidade máxima 3.
+        Ciclos são interrompidos com `truncated=true`.
+      parameters:
+        - $ref: "#/components/parameters/URNPath"
+        - in: query
+          name: depth
+          schema: { type: integer, default: 1, minimum: 1, maximum: 3 }
+        - $ref: "#/components/parameters/AsOf"
+        - $ref: "#/components/parameters/IncludeInactive"
+      responses:
+        "200":
+          description: Árvore.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportTree" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+components:
+  securitySchemes:
+    tenantHeader:
+      type: apiKey
+      in: header
+      name: X-Tenant-ID
+      description: |
+        Identificador opaco de tenant. Em modo `--tenant-required` (ADR-001),
+        ausência devolve 401. Em modo permissivo, o servidor injeta o tenant
+        "default".
+
+  parameters:
+    URNPath:
+      in: path
+      name: urn
+      required: true
+      description: |
+        URN canônica (`urn:ce:<provider>:<account>:<kind>/<id>`). Pode conter
+        `/` e `:`; servidor aceita a forma literal — o roteador usa wildcard.
+      schema: { type: string }
+    AsOf:
+      in: query
+      name: as_of
+      description: Filtro bitemporal (RFC3339). Sem ele, versão corrente.
+      schema: { type: string, format: date-time }
+    Limit:
+      in: query
+      name: limit
+      description: Tamanho da página (default 50, máx 200).
+      schema: { type: integer, default: 50, minimum: 1, maximum: 200 }
+    Cursor:
+      in: query
+      name: cursor
+      description: |
+        Continuação opaca. Alterar parâmetros entre páginas invalida
+        o cursor (fingerprint inclui `as_of` e escopo).
+      schema: { type: string }
+    IncludeInactive:
+      in: query
+      name: include_inactive
+      description: |
+        Quando `true`, inclui versões fechadas (`valid_to != null`)
+        — ex.: ex-funcionários, squads desativados. PII permanece
+        mascarada. Default `false`.
+      schema: { type: boolean, default: false }
+
+  responses:
+    NotFound:
+      description: Recurso não encontrado.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorBody" }
+    BadRequest:
+      description: Parâmetro inválido.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorBody" }
+    Unauthorized:
+      description: Auth requerido e ausente.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorBody" }
+
+  schemas:
+    ErrorBody:
+      type: object
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum:
+                - bad_request
+                - not_found
+                - ambiguous
+                - unauthorized
+                - forbidden
+                - internal
+                - unimplemented
+            message: { type: string }
+            request_id: { type: string }
+
+    NodeView:
+      type: object
+      required: [urn, kind, version, valid_from]
+      properties:
+        urn: { type: string }
+        kind: { type: string }
+        version: { type: integer }
+        valid_from: { type: string, format: date-time }
+        valid_to: { type: string, format: date-time, nullable: true }
+        observed_at: { type: string, format: date-time }
+        confidence: { type: number }
+        labels:
+          type: array
+          items: { type: string }
+        data:
+          type: object
+          description: |
+            Payload concreto do nó (Compute/Service/Persistence/...). O shape
+            varia por Kind; consumers podem ignorar campos extras com
+            segurança (forward-compat).
+          additionalProperties: true
+
+    EdgeView:
+      type: object
+      required: [id, type, from, to, valid_from]
+      properties:
+        id: { type: string }
+        type: { type: string }
+        from: { type: string }
+        to: { type: string }
+        valid_from: { type: string, format: date-time }
+        valid_to: { type: string, format: date-time, nullable: true }
+        observed_at: { type: string, format: date-time }
+        confidence: { type: number }
+        data:
+          type: object
+          additionalProperties: true
+
+    TeamView:
+      type: object
+      required: [urn, kind, tenant, slug, name, squad_count, person_count, valid_from]
+      properties:
+        urn: { type: string }
+        kind: { type: string, example: team }
+        tenant: { type: string }
+        slug: { type: string }
+        name: { type: string }
+        squad_count: { type: integer }
+        person_count:
+          type: integer
+          description: Soma deduplicada de pessoas em todos os squads do team.
+        squads:
+          type: array
+          description: URNs dos squads (presente apenas no detalhe).
+          items: { type: string }
+        valid_from: { type: string, format: date-time }
+        valid_to: { type: string, format: date-time, nullable: true }
+        observed_at: { type: string, format: date-time }
+
+    SquadView:
+      type: object
+      required: [urn, kind, tenant, slug, name, team_urn, member_count, valid_from]
+      properties:
+        urn: { type: string }
+        kind: { type: string, example: squad }
+        tenant: { type: string }
+        slug: { type: string }
+        name: { type: string }
+        team_urn: { type: string }
+        member_count: { type: integer }
+        valid_from: { type: string, format: date-time }
+        valid_to: { type: string, format: date-time, nullable: true }
+        observed_at: { type: string, format: date-time }
+
+    PersonView:
+      type: object
+      required: [urn, kind, tenant, name, email, squad_urn, active, valid_from]
+      properties:
+        urn: { type: string }
+        kind: { type: string, example: person }
+        tenant: { type: string }
+        name: { type: string }
+        email:
+          type: string
+          description: |
+            Sempre mascarado (formato `a***@d***.com`). Email pleno
+            nunca trafega — F-010 D8.
+        role: { type: string }
+        squad_urn: { type: string }
+        team_urn:
+          type: string
+          description: |
+            Transitivo via squad.TeamURN; presente apenas em
+            endpoints onde a transitividade faz sentido.
+        github_handle: { type: string }
+        manager_hash: { type: string }
+        active:
+          type: boolean
+          description: |
+            `false` quando a versão tem `valid_to != null`
+            (ex-funcionário ou versão snapshot histórica fechada).
+        valid_from: { type: string, format: date-time }
+        valid_to: { type: string, format: date-time, nullable: true }
+        observed_at: { type: string, format: date-time }
+
+    ReportNode:
+      type: object
+      required: [person, reports]
+      properties:
+        person: { $ref: "#/components/schemas/PersonView" }
+        reports:
+          type: array
+          items: { $ref: "#/components/schemas/ReportNode" }
+
+    ReportTree:
+      type: object
+      required: [root, reports, depth, truncated]
+      properties:
+        root: { $ref: "#/components/schemas/PersonView" }
+        reports:
+          type: array
+          items: { $ref: "#/components/schemas/ReportNode" }
+        depth:
+          type: integer
+          description: Profundidade efetiva da árvore (1..3).
+        truncated:
+          type: boolean
+          description: |
+            `true` se a expansão foi interrompida por ciclo ou
+            limite de profundidade.

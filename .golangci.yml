@@ -1,0 +1,243 @@
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gofumpt
+    - goimports
+    - revive
+    - misspell
+    - unconvert
+    - unparam
+    - bodyclose
+    - prealloc
+    - gocritic
+    - nilerr
+    - errorlint
+    - depguard
+
+linters-settings:
+  goimports:
+    local-prefixes: costEngine
+  revive:
+    rules:
+      - name: exported
+        arguments:
+          - disableStutteringCheck
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - performance
+      - style
+    disabled-checks:
+      - hugeParam
+      - paramTypeCombine
+
+  # depguard impõe as regras invioláveis de import descritas no
+  # 04-modular.md / F-016. Resumo:
+  #   - entity/* só depende de stdlib (e outros entity)
+  #   - core/* só depende de stdlib (sem repository/modules/app)
+  #   - platform/* só depende de stdlib + core/errs
+  #   - repository/* não importa modules/* nem app/*
+  #   - modules/<X>/* não importa modules/<Y>/* (Y!=X)
+  #       exceção: modules/bridge é importável por qualquer módulo
+  #   - app/* não importa modules/*
+  #       exceção: app/graph/controller importa repository (ADR-005)
+  #       exceção: app/search NÃO importa repository (port-set)
+  #   - cmd/* monta o wiring (pode importar tudo)
+  depguard:
+    rules:
+      # ------------------------------------------------------------
+      # entity/* — núcleo de domínio, zero dependências internas.
+      # ------------------------------------------------------------
+      entity:
+        list-mode: lax
+        files:
+          - "**/internal/entity/**"
+        deny:
+          - pkg: "costEngine/internal/repository"
+            desc: "entity não pode depender de repository"
+          - pkg: "costEngine/internal/modules"
+            desc: "entity não pode depender de modules"
+          - pkg: "costEngine/internal/app"
+            desc: "entity não pode depender de app"
+          - pkg: "costEngine/internal/platform"
+            desc: "entity não pode depender de platform"
+
+      # ------------------------------------------------------------
+      # core/* — primitivos transversais. Pode importar entity e
+      # repository (core/errs.Render mapeia sentinelas de repository
+      # como ErrNotFound → HTTPProblem). Negado: modules, app, platform.
+      # ------------------------------------------------------------
+      core:
+        list-mode: lax
+        files:
+          - "**/internal/core/**"
+        deny:
+          - pkg: "costEngine/internal/modules"
+            desc: "core não pode depender de modules"
+          - pkg: "costEngine/internal/app"
+            desc: "core não pode depender de app"
+          - pkg: "costEngine/internal/platform"
+            desc: "core não pode depender de platform"
+
+      # ------------------------------------------------------------
+      # platform/* — infra técnica reutilizável (httpserver).
+      # Permitido: stdlib, core/errs, entity. Negado: repository/modules/app.
+      # ------------------------------------------------------------
+      platform:
+        list-mode: lax
+        files:
+          - "**/internal/platform/**"
+        deny:
+          - pkg: "costEngine/internal/repository"
+            desc: "platform não pode depender de repository"
+          - pkg: "costEngine/internal/modules"
+            desc: "platform não pode depender de modules"
+          - pkg: "costEngine/internal/app"
+            desc: "platform não pode depender de app"
+
+      # ------------------------------------------------------------
+      # repository/* — adaptadores de persistência. Não conhece app
+      # nem modules; só entity + core.
+      # ------------------------------------------------------------
+      repository:
+        list-mode: lax
+        files:
+          - "**/internal/repository/**"
+        deny:
+          - pkg: "costEngine/internal/modules"
+            desc: "repository não pode depender de modules"
+          - pkg: "costEngine/internal/app"
+            desc: "repository não pode depender de app"
+
+      # ------------------------------------------------------------
+      # app/search — port-set: define a própria porta (NodeSearcher);
+      # NÃO pode importar `repository` (o adapter vive em cmd/api).
+      # ------------------------------------------------------------
+      app_search:
+        list-mode: lax
+        files:
+          - "**/internal/app/search/**"
+        deny:
+          - pkg: "costEngine/internal/repository"
+            desc: "app/search usa port-set; o adapter para repository vive em cmd/api"
+          - pkg: "costEngine/internal/modules"
+            desc: "app/search é cross-kind, sem dependência de módulo"
+
+      # ------------------------------------------------------------
+      # app/graph — exceção documentada (ADR-005): wrapper fino sobre
+      # NodeRepository/EdgeRepository. Pode importar repository.
+      # Não pode importar modules (segue sendo cross-kind genérico).
+      # ------------------------------------------------------------
+      app_graph:
+        list-mode: lax
+        files:
+          - "**/internal/app/graph/**"
+        deny:
+          - pkg: "costEngine/internal/modules"
+            desc: "app/graph é cross-kind genérico; lógica de módulo vai em modules/<X>/controller"
+
+      # ------------------------------------------------------------
+      # modules/<X>/* — não pode importar outros modules/<Y>/*. A
+      # única integração cross-módulo permitida é via modules/bridge.
+      # Cada módulo é um bounded context fechado.
+      # ------------------------------------------------------------
+      module_code:
+        list-mode: lax
+        files:
+          - "**/internal/modules/code/**"
+        deny:
+          - pkg: "costEngine/internal/modules/org"
+            desc: "code não importa org; integração cross-módulo via bridge"
+          - pkg: "costEngine/internal/modules/infra"
+            desc: "code não importa infra; integração cross-módulo via bridge"
+          - pkg: "costEngine/internal/modules/cost"
+            desc: "code não importa cost; integração cross-módulo via bridge"
+          - pkg: "costEngine/internal/app"
+            desc: "modules não importam app"
+
+      module_infra:
+        list-mode: lax
+        files:
+          - "**/internal/modules/infra/**"
+        deny:
+          - pkg: "costEngine/internal/modules/org"
+            desc: "infra não importa org; integração cross-módulo via bridge"
+          - pkg: "costEngine/internal/modules/code"
+            desc: "infra não importa code; integração cross-módulo via bridge"
+          - pkg: "costEngine/internal/modules/cost"
+            desc: "infra não importa cost; integração cross-módulo via bridge"
+          - pkg: "costEngine/internal/app"
+            desc: "modules não importam app"
+
+      module_org:
+        list-mode: lax
+        files:
+          - "**/internal/modules/org/**"
+        deny:
+          - pkg: "costEngine/internal/modules/code"
+            desc: "org não importa code; integração cross-módulo via bridge"
+          - pkg: "costEngine/internal/modules/infra"
+            desc: "org não importa infra; integração cross-módulo via bridge"
+          - pkg: "costEngine/internal/modules/cost"
+            desc: "org não importa cost; integração cross-módulo via bridge"
+          - pkg: "costEngine/internal/app"
+            desc: "modules não importam app"
+
+      module_cost:
+        list-mode: lax
+        files:
+          - "**/internal/modules/cost/**"
+        deny:
+          - pkg: "costEngine/internal/modules/org"
+            desc: "cost não importa org; integração cross-módulo via bridge"
+          - pkg: "costEngine/internal/modules/code"
+            desc: "cost não importa code; integração cross-módulo via bridge"
+          - pkg: "costEngine/internal/modules/infra"
+            desc: "cost não importa infra; integração cross-módulo via bridge"
+          - pkg: "costEngine/internal/app"
+            desc: "modules não importam app"
+
+      # ------------------------------------------------------------
+      # modules/bridge — integração cross-plano. Pode importar
+      # entity, repository, core, platform. Não importa app nem
+      # outros modules (são quem importa bridge).
+      # ------------------------------------------------------------
+      module_bridge:
+        list-mode: lax
+        files:
+          - "**/internal/modules/bridge/**"
+        deny:
+          - pkg: "costEngine/internal/modules/org"
+            desc: "bridge é cross-plano, não depende de módulos específicos"
+          - pkg: "costEngine/internal/modules/code"
+            desc: "bridge é cross-plano, não depende de módulos específicos"
+          - pkg: "costEngine/internal/modules/infra"
+            desc: "bridge é cross-plano, não depende de módulos específicos"
+          - pkg: "costEngine/internal/modules/cost"
+            desc: "bridge é cross-plano, não depende de módulos específicos"
+          - pkg: "costEngine/internal/app"
+            desc: "modules não importam app"
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+        - unparam
+        - gocritic
+    # Testes podem montar fixtures reais; o `port-set` é um contrato
+    # de produção. Wire-up de teste é análogo ao cmd/api/main.go.
+    - path: "internal/app/search/.*_test\\.go"
+      linters:
+        - depguard
+  max-issues-per-linter: 0
+  max-same-issues: 0
