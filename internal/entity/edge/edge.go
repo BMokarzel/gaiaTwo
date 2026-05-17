@@ -28,18 +28,56 @@ const (
 	TypeReplaces         Type = "REPLACES"          // versionamento estrutural
 
 	// Code plane (F-007).
-	TypeDefinedIn Type = "DEFINED_IN" // Endpoint/Function → Service
+	// Deprecated: usar TypeContains (Module→Function/Endpoint) — F-018.
+	TypeDefinedIn Type = "DEFINED_IN"
 
 	// Bridge code→infra (F-009, ADR-004).
 	TypeServiceRunsOn Type = "RUNS_ON" // Service → Compute
 
-	// Org plane (F-010).
-	TypeMemberOf  Type = "MEMBER_OF"  // Person → Squad
-	TypePartOf    Type = "PART_OF"    // Squad → Team
-	TypeReportsTo Type = "REPORTS_TO" // Person → Person
+	// Code plane — Call family (ADR-007).
+	TypeInvokes Type = "INVOKES" // Function → Call
+	TypeTargets Type = "TARGETS" // Call → Function|Endpoint|Persistence|Messaging|Schema
+	TypeUses    Type = "USES"    // Call|Module|Service → Framework
 
-	// Bridge org→code (F-011): code ownership a partir do CODEOWNERS.
-	TypeOwns Type = "OWNS" // Person|Team → Service
+	// Code plane — Type system (F-021).
+	TypeImplements Type = "IMPLEMENTS" // Type → Type
+	TypeExtends    Type = "EXTENDS"    // Type → Type (herança/embedding)
+	TypeAliases    Type = "ALIASES"    // Type → Type
+
+	// Code plane — Schema (F-022).
+	TypeSerializesAs Type = "SERIALIZES_AS" // Type → Schema
+	TypeImports      Type = "IMPORTS"       // Schema → Schema
+
+	// Code plane — Framework/License/SecurityAdvisory (F-023).
+	TypeLicensedUnder Type = "LICENSED_UNDER" // Framework → License
+	TypeAffectedBy    Type = "AFFECTED_BY"    // Framework → SecurityAdvisory
+	TypePatchedIn     Type = "PATCHED_IN"     // SecurityAdvisory → Framework
+
+	// Governance plane (E-008).
+	TypeDelivers   Type = "DELIVERS"    // Feature → UserStory
+	TypeAssignedTo Type = "ASSIGNED_TO" // Person → UserStory
+	TypeServes     Type = "SERVES"      // UserStory → Persona
+
+	// Org plane (F-010 + F-027).
+	TypeMemberOf  Type = "MEMBER_OF"  // Person → Squad (legado)
+	TypePartOf    Type = "PART_OF"    // Squad → Team (legado)
+	TypeReportsTo Type = "REPORTS_TO" // Person → Person
+	TypeHasRole   Type = "HAS_ROLE"   // Person → Role (F-027)
+	TypeLedBy     Type = "LED_BY"     // Team → Person (liderança, F-027)
+
+	// Bridge org→code (F-011 + F-029): code ownership.
+	// Cardinalidades bifurcadas (ADR-010):
+	//   Team   ─OWNS─▶ Service|Module|Endpoint|Feature|Epic
+	//   Person ─OWNS─▶ Function|Call|Type|Variable
+	TypeOwns Type = "OWNS"
+
+	// Bridge gov→code (F-013): Feature realiza-se em um ou mais Services.
+	//   Feature ─REALIZES─▶ Service
+	//
+	// Capturada via webhook GitHub (label `feature:<urn>` em PR mergeado);
+	// idempotente por par (feature, service). `Source.Properties`
+	// guarda `pr_url`, `merged_at` para auditoria.
+	TypeRealizes Type = "REALIZES"
 )
 
 // Meta carrega os atributos transversais presentes em toda aresta.

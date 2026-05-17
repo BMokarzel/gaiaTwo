@@ -111,21 +111,22 @@ func TestPipeline_TwoPassCloseReopen(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Passada 1: alice + team — 2 opened.
+	// Passada 1: alice (Person, rejeitado por ADR-010) + team (aberto).
 	st1, _ := runPipeline(t, r, "acme", repoPath,
 		"* @alice @org/payments\n", now.Add(time.Hour))
-	if st1.Opened != 2 || st1.Closed != 0 || st1.Unchanged != 0 {
+	if st1.Opened != 1 || st1.Closed != 0 || st1.Unchanged != 0 || st1.Rejected != 1 {
 		t.Fatalf("pass1=%+v", st1)
 	}
 
-	// Passada 2: só team — alice deve ser fechada.
+	// Passada 2: só team — sem mudança no grafo (Person já estava
+	// rejeitado, então não fecha nada).
 	st2, _ := runPipeline(t, r, "acme", repoPath,
 		"* @org/payments\n", now.Add(2*time.Hour))
-	if st2.Opened != 0 || st2.Closed != 1 || st2.Unchanged != 1 {
+	if st2.Opened != 0 || st2.Closed != 0 || st2.Unchanged != 1 {
 		t.Fatalf("pass2=%+v", st2)
 	}
 
-	// Passada 3: mesmo conteúdo da 2 → idempotente.
+	// Passada 3: idempotente.
 	st3, _ := runPipeline(t, r, "acme", repoPath,
 		"* @org/payments\n", now.Add(3*time.Hour))
 	if st3.Opened != 0 || st3.Closed != 0 || st3.Unchanged != 1 {
@@ -143,12 +144,26 @@ func TestPipeline_TwoPassCloseReopen(t *testing.T) {
 	_ = alice
 }
 
-// TestPipeline_ReopenAfterClose: passada 1 abre alice; passada 2 fecha;
-// passada 3 reabre. Confere semântica close-and-reopen.
+// TestPipeline_ReopenAfterClose: passada 1 abre team-a; passada 2
+// substitui por team-b (close + open); passada 3 readiciona team-a
+// (reopen). Cobre semântica close-and-reopen apenas com Teams porque
+// ADR-010/F-029 não admite Person→Service.
 func TestPipeline_ReopenAfterClose(t *testing.T) {
 	r := memory.New()
 	now := time.Date(2026, 5, 14, 0, 0, 0, 0, time.UTC)
 	_, _, _ = seedFullGraph(t, r, now)
+	// Seed um segundo Team "platform" para o teste.
+	ctx := context.Background()
+	if err := r.Upsert(ctx, node.Team{
+		Base: node.Base{
+			NodeURN:  node.NewTeamURN("acme", "platform"),
+			NodeKind: node.KindTeam,
+			NodeMeta: node.Meta{Version: 1, ValidFrom: now, ObservedAt: now, Confidence: 1},
+		},
+		Tenant: "acme", Slug: "platform", Name: "Platform",
+	}); err != nil {
+		t.Fatalf("seed platform team: %v", err)
+	}
 
 	dir := t.TempDir()
 	repoPath := filepath.Join(dir, "payments")
@@ -157,43 +172,41 @@ func TestPipeline_ReopenAfterClose(t *testing.T) {
 	}
 
 	st1, _ := runPipeline(t, r, "acme", repoPath,
-		"* @alice\n", now.Add(time.Hour))
+		"* @org/payments\n", now.Add(time.Hour))
 	if st1.Opened != 1 {
 		t.Fatalf("pass1=%+v", st1)
 	}
 	st2, _ := runPipeline(t, r, "acme", repoPath,
-		"* @org/payments\n", now.Add(2*time.Hour))
+		"* @org/platform\n", now.Add(2*time.Hour))
 	if st2.Opened != 1 || st2.Closed != 1 {
 		t.Fatalf("pass2=%+v", st2)
 	}
 	st3, _ := runPipeline(t, r, "acme", repoPath,
-		"* @alice @org/payments\n", now.Add(3*time.Hour))
+		"* @org/payments @org/platform\n", now.Add(3*time.Hour))
 	if st3.Opened != 1 || st3.Unchanged != 1 {
-		t.Fatalf("pass3=%+v (queria 1 open p/ alice de volta, 1 unchanged p/ team)", st3)
+		t.Fatalf("pass3=%+v (queria 1 open p/ payments, 1 unchanged p/ platform)", st3)
 	}
 }
 
-// TestPipeline_DuplicateOwnerBothEdges: alice (Person) + alice (Team)
-// — se ambos existem no grafo, ambos viram edges separados.
+// TestPipeline_DuplicateOwnerBothEdges: dois Teams distintos em uma
+// regra → ambos viram OWNS. (Pré-F-029 testava Person+Team; agora só
+// Team é elegível para Service.)
 func TestPipeline_DuplicateOwnerBothEdges(t *testing.T) {
 	r := memory.New()
 	now := time.Date(2026, 5, 14, 0, 0, 0, 0, time.UTC)
 	_, _, _ = seedFullGraph(t, r, now)
 
-	// Adiciona um Team também chamado "alice" (sim: handle Person ==
-	// slug Team é colisão real em CODEOWNERS, ambos devem virar
-	// edges distintos).
 	ctx := context.Background()
 	tm := node.Team{
 		Base: node.Base{
-			NodeURN:  node.NewTeamURN("acme", "alice"),
+			NodeURN:  node.NewTeamURN("acme", "platform"),
 			NodeKind: node.KindTeam,
 			NodeMeta: node.Meta{Version: 1, ValidFrom: now, ObservedAt: now, Confidence: 1},
 		},
-		Tenant: "acme", Slug: "alice", Name: "Alice-Team",
+		Tenant: "acme", Slug: "platform", Name: "Platform",
 	}
 	if err := r.Upsert(ctx, tm); err != nil {
-		t.Fatalf("upsert team alice: %v", err)
+		t.Fatalf("upsert team platform: %v", err)
 	}
 
 	dir := t.TempDir()
@@ -203,9 +216,9 @@ func TestPipeline_DuplicateOwnerBothEdges(t *testing.T) {
 	}
 
 	st, _ := runPipeline(t, r, "acme", repoPath,
-		"* @alice @acme/alice\n", now.Add(time.Hour))
+		"* @org/payments @acme/platform\n", now.Add(time.Hour))
 	if st.Opened != 2 {
-		t.Fatalf("queria 2 opened (Person+Team), got=%+v", st)
+		t.Fatalf("queria 2 opened (dois Teams), got=%+v", st)
 	}
 }
 
@@ -223,9 +236,9 @@ func TestPipeline_UnresolvedNonFatal(t *testing.T) {
 	}
 
 	st, emit := runPipeline(t, r, "acme", repoPath,
-		"* @alice @ghost-user\n", now.Add(time.Hour))
+		"* @org/payments @ghost-user\n", now.Add(time.Hour))
 	if st.Opened != 1 {
-		t.Fatalf("queria 1 opened (só alice), got=%+v", st)
+		t.Fatalf("queria 1 opened (só team payments), got=%+v", st)
 	}
 	if st.Unresolved != 1 {
 		t.Fatalf("queria 1 unresolved, got=%+v", st)

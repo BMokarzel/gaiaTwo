@@ -84,13 +84,42 @@ func ExtractEndpoints(
 			}
 		}
 
-		file, perr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+		file, perr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution|parser.ParseComments)
 		if perr != nil {
 			return nil
 		}
 		pkgName := file.Name.Name
 		relFile, _ := filepath.Rel(repoRoot, path)
 		relFile = filepath.ToSlash(relFile)
+
+		// Pré-coleta tags por FuncDecl (span de linhas) — endpoints
+		// registrados dentro herdam o `// @feature:` da função pai.
+		type funcTags struct {
+			lineInit, lineEnd int
+			tags              []string
+		}
+		var fnTagSpans []funcTags
+		for _, decl := range file.Decls {
+			if fn, ok := decl.(*ast.FuncDecl); ok {
+				ts := extractFeatureTagsFromDoc(fn.Doc)
+				if len(ts) == 0 {
+					continue
+				}
+				fnTagSpans = append(fnTagSpans, funcTags{
+					lineInit: fset.Position(fn.Pos()).Line,
+					lineEnd:  fset.Position(fn.End()).Line,
+					tags:     ts,
+				})
+			}
+		}
+		tagsForLine := func(line int) []string {
+			for _, s := range fnTagSpans {
+				if line >= s.lineInit && line <= s.lineEnd {
+					return s.tags
+				}
+			}
+			return nil
+		}
 
 		ast.Inspect(file, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
@@ -103,6 +132,7 @@ func ExtractEndpoints(
 			}
 			urn := node.NewEndpointURN(repo, serviceModulePath, method, route)
 			pos := fset.Position(call.Pos())
+			endPos := fset.Position(call.End())
 			out = append(out, node.Endpoint{
 				Base: node.Base{
 					NodeURN:  urn,
@@ -119,13 +149,22 @@ func ExtractEndpoints(
 						Confidence: 1.0,
 					},
 				},
-				ServiceURN: serviceURN,
-				Method:     method,
-				Route:      route,
-				Handler:    handler,
-				File:       relFile,
-				Line:       pos.Line,
-				Framework:  framework,
+				ServiceURN:  serviceURN,
+				Method:      method,
+				Route:       route,
+				Handler:     handler,
+				Framework:   framework,
+				FeatureTags: tagsForLine(pos.Line),
+				Location: node.Location{
+					File:     relFile,
+					LineInit: pos.Line,
+					LineEnd:  endPos.Line,
+					ColInit:  pos.Column,
+					ColEnd:   endPos.Column,
+				},
+				// Deprecated mirrors.
+				File: relFile,
+				Line: pos.Line,
 			})
 			return true
 		})

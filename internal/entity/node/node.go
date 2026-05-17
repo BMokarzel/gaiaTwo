@@ -29,17 +29,39 @@ const (
 	KindMessaging   Kind = "messaging"
 	KindNetwork     Kind = "network"
 
-	// Code plane (F-007) — kinds para nós extraídos de repositórios.
+	// Code plane (F-007 / E-007) — nós extraídos de repositórios.
 	// Não são Resource (sem account/region/spec do provedor); são Node puros.
-	KindService  Kind = "service"  // 1 módulo Go (raiz com go.mod)
+	// Identidade cross-language: ver ADR-006.
+	KindService  Kind = "service"  // raiz de manifest (go.mod, package.json, pyproject.toml…)
+	KindModule   Kind = "module"   // pasta/namespace agregador (F-018, CONTAINS aninhável)
 	KindEndpoint Kind = "endpoint" // handler HTTP (método+rota)
-	KindFunction Kind = "function" // função exportada relevante
+	KindFunction Kind = "function" // função/método declarado
+	KindType     Kind = "type"     // struct/class/interface/enum/alias/union (F-021)
+	KindVariable Kind = "variable" // package-level var/const (F-021)
+	KindCall     Kind = "call"     // call site nó (família F-019/F-020; subkind em Call.Kind)
+	KindSchema   Kind = "schema"   // contrato externo (proto, OpenAPI) — F-022
 
-	// Org plane (F-010) — kinds para hierarquia organizacional.
+	// Code plane globais (F-023) — entidades trans-repo.
+	KindFramework        Kind = "framework"          // biblioteca/dependência
+	KindLicense          Kind = "license"            // identificador SPDX
+	KindSecurityAdvisory Kind = "security_advisory"  // CVE / GHSA
+
+	// Org plane (F-010 + F-027) — hierarquia organizacional.
 	// Person.URN usa hash do email para minimizar PII (ver F-010 D2).
-	KindPerson Kind = "person"
-	KindTeam   Kind = "team"
-	KindSquad  Kind = "squad"
+	KindCompany      Kind = "company"
+	KindBusinessArea Kind = "business_area"
+	KindPerson       Kind = "person"
+	KindTeam         Kind = "team"
+	KindSquad        Kind = "squad" // legado F-010; novos coletores devem usar Team.
+	KindRole         Kind = "role"  // (track, level) — F-027
+
+	// Governance plane (E-008) — eixo product-arch + delivery + audience.
+	KindDomain     Kind = "domain"     // bloco de negócio (F-024)
+	KindCapability Kind = "capability" // capacidade dentro de Domain (F-024)
+	KindFeature    Kind = "feature"    // entrega de capacidade (F-024)
+	KindEpic       Kind = "epic"       // agrupador de delivery (F-025)
+	KindUserStory  Kind = "user_story" // unidade de delivery (F-025)
+	KindPersona    Kind = "persona"    // perfil de usuário (F-026)
 )
 
 // Method identifica como um fato foi obtido.

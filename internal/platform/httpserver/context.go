@@ -57,3 +57,10 @@ func withRequestID(ctx context.Context, id string) context.Context {
 func withTenantID(ctx context.Context, id string) context.Context {
 	return context.WithValue(ctx, ctxKeyTenantID, id)
 }
+
+// ContextWithTenant injeta um tenant no contexto. Usado por callers
+// que não passam pela cadeia HTTP (CLI, testes diretos, jobs internos).
+// Em HTTP normal, prefira deixar o `authMiddleware` resolver via header.
+func ContextWithTenant(ctx context.Context, tenant string) context.Context {
+	return withTenantID(ctx, tenant)
+}

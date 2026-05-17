@@ -75,10 +75,68 @@ linkados a infra.
 
 ---
 
+## E-007 — Cross-Language Code Ontology
+
+**Objetivo:** code plane deixa de ser Go-specific e ganha família
+completa de nós (Module, Type, Schema, Variable, Call family,
+Framework/License/CVE). Estende e em parte substitui F-007.
+Fundação técnica para governança fina, simulação de fluxo e análise
+de impacto.
+
+**Documentação:** [`docs/architecture/08-code-ontology.md`](../architecture/08-code-ontology.md)
+· ADRs [ADR-006](../architecture/decisions/ADR-006-cross-language-code-identity.md)
+· [ADR-007](../architecture/decisions/ADR-007-call-as-node-family.md)
+· [ADR-008](../architecture/decisions/ADR-008-params-fields-as-metadata.md)
+
+**Features (planejadas — ver [code-ontology-plan.md](code-ontology-plan.md)):**
+- F-017 — Migração de identidade Service/Endpoint/Function para cross-language
+- F-018 — Module como nó com CONTAINS aninhável
+- F-019 — Call family: boundary (HttpCall, RpcCall, EventPublish/Subscribe, QueueSend/Receive, DataAccess, JobSchedule)
+- F-020 — Call family: in-process (FunctionCall, MethodCall)
+- F-021 — Type e Variable como nós + edges entre Types (IMPLEMENTS/EXTENDS/ALIASES)
+- F-022 — Schema como nó (proto/OpenAPI) + Type -SERIALIZES_AS-> Schema
+- F-023 — Framework/License/SecurityAdvisory globais
+
+**Critério de épico pronto:** rodar coletor Go em repo real produz
+grafo completo (Service/Module/Endpoint/Function/Type/Variable/Schema/Call/Framework),
+queries de impacto e patching de CVE executam ponta-a-ponta.
+
+---
+
+## E-008 — Governance & Delivery Mapping
+
+**Objetivo:** governance plane completo (eixos org, product-arch, delivery,
+audiência) e ponte denormalizada para o code plane via feature-tag.
+Materializa a camada de intenção que ancora as queries de governança.
+
+**Documentação:** [`docs/architecture/08-code-ontology.md`](../architecture/08-code-ontology.md) (seções 3 e 4)
+· ADRs [ADR-009](../architecture/decisions/ADR-009-feature-tag-denormalized.md)
+· [ADR-010](../architecture/decisions/ADR-010-ownership-bifurcated.md)
+
+**Features (planejadas — ver [code-ontology-plan.md](code-ontology-plan.md)):**
+- F-024 — Domain e Capability como nós (estende F-012)
+- F-025 — Epic e UserStory como nós
+- F-026 — Persona como nó (apenas via UserStory)
+- F-027 — Role como nó por (track, level)
+- F-028 — Feature-tag denormalizada em código
+- F-029 — Ownership bifurcada (Team alto-nível, Person execução; estende F-011)
+
+**Critério de épico pronto:** drift "feature sem código" e "tag órfã"
+detectado em CI; reorganização org não destrói histórico bitemporal.
+
+---
+
 ## Ordem de épicos sugerida
 
 E-001 → E-002 → (E-003 ‖ E-004) → E-005 → E-006
+                                                ↘
+                                                  E-007 → E-008
 
 E-001 e E-002 são pré-requisito para tudo. E-003 e E-004 podem ser
 paralelos. E-005 precisa de E-003 e E-004 maduros. E-006 começa cedo
 mas só dá valor real depois de E-001+E-002.
+
+**E-007 substitui parcialmente E-003:** F-017 reescreve a identidade
+de F-007 cross-language. Pode ser feito assim que F-002 e F-007
+estiverem estáveis. **E-008 substitui parcialmente E-005:** F-024+
+estende F-012 com hierarquia completa.

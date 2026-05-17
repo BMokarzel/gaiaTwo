@@ -36,7 +36,7 @@ func TestX() {}
 `)
 
 	urn := node.NewServiceURN("ex", ".")
-	got, err := ExtractFunctions(root, root, ".", urn, "ex",
+	got, err := ExtractFunctions(root, root, ".", "ex/test", urn, "ex",
 		FuncFilterOptions{}, EmitOptions{Repo: "ex", ObservedAt: time.Unix(0, 0).UTC()})
 	if err != nil {
 		t.Fatalf("ExtractFunctions: %v", err)
@@ -84,7 +84,7 @@ func TopFn() {}
 func SubmoduleFn() {}
 `)
 
-	got, err := ExtractFunctions(root, root, ".",
+	got, err := ExtractFunctions(root, root, ".", "ex",
 		node.NewServiceURN("ex", "."), "ex",
 		FuncFilterOptions{}, EmitOptions{Repo: "ex"})
 	if err != nil {
@@ -101,13 +101,13 @@ func TestExtractFunctions_Idempotent(t *testing.T) {
 	mustWrite(t, filepath.Join(root, "service", "s.go"), `package service
 func DoThing(a, b int) (int, error) { return a + b, nil }
 `)
-	a, err := ExtractFunctions(root, root, ".",
+	a, err := ExtractFunctions(root, root, ".", "ex",
 		node.NewServiceURN("ex", "."), "ex",
 		FuncFilterOptions{}, EmitOptions{Repo: "ex"})
 	if err != nil {
 		t.Fatalf("a: %v", err)
 	}
-	b, err := ExtractFunctions(root, root, ".",
+	b, err := ExtractFunctions(root, root, ".", "ex",
 		node.NewServiceURN("ex", "."), "ex",
 		FuncFilterOptions{}, EmitOptions{Repo: "ex"})
 	if err != nil {
@@ -132,7 +132,7 @@ func TestRenderSignature_Variants(t *testing.T) {
 import "context"
 func A(ctx context.Context, ids ...string) (map[string]int, error) { return nil, nil }
 `)
-	got, err := ExtractFunctions(root, root, ".",
+	got, err := ExtractFunctions(root, root, ".", "ex",
 		node.NewServiceURN("ex", "."), "ex",
 		FuncFilterOptions{}, EmitOptions{Repo: "ex"})
 	if err != nil {

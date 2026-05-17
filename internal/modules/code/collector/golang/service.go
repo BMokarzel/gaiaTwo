@@ -1,6 +1,7 @@
 package golang
 
 import (
+	"path/filepath"
 	"time"
 
 	"costEngine/internal/entity/node"
@@ -15,7 +16,7 @@ type EmitOptions struct {
 
 // EmitServices converte uma lista de `Discovered` em `node.Service`.
 // URN é determinística — reprocessar o mesmo repo produz o mesmo
-// conjunto de URNs (idempotência F-007 D6).
+// conjunto de URNs (idempotência F-007 D6 / F-017).
 func EmitServices(found []Discovered, opts EmitOptions) []node.Service {
 	now := opts.ObservedAt
 	if now.IsZero() {
@@ -24,6 +25,12 @@ func EmitServices(found []Discovered, opts EmitOptions) []node.Service {
 	out := make([]node.Service, 0, len(found))
 	for _, d := range found {
 		urn := node.NewServiceURN(opts.Repo, d.RelPath)
+
+		manifest := "go.mod"
+		if d.RelPath != "." {
+			manifest = filepath.ToSlash(filepath.Join(d.RelPath, "go.mod"))
+		}
+
 		out = append(out, node.Service{
 			Base: node.Base{
 				NodeURN:  urn,
@@ -40,10 +47,13 @@ func EmitServices(found []Discovered, opts EmitOptions) []node.Service {
 					Confidence: 1.0,
 				},
 			},
-			Repo:       opts.Repo,
-			ModulePath: d.RelPath,
-			Language:   "go",
-			GoModule:   d.GoModule,
+			Repo:         opts.Repo,
+			ModulePath:   d.RelPath,
+			Language:     "go",
+			Namespace:    d.GoModule, // F-017: namespace lógico cross-language
+			Manifest:     manifest,
+			ManifestType: node.ManifestGoMod,
+			GoModule:     d.GoModule, // deprecated; mantido durante migração
 		})
 	}
 	return out

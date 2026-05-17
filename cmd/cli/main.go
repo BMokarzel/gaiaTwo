@@ -37,6 +37,9 @@ Uso:
                  [--batch-size=<n>] [--dry-run]
   ce ingest hris --csv=<path> --tenant=<id> [--neo4j=<uri>] [--neo4j-user=<u>]
                  [--neo4j-pass=<p>] [--neo4j-db=<d>] [--dry-run]
+  ce ingest openapi --spec=<path> --service=<service_urn> [--neo4j=<uri>]
+                 [--neo4j-user=<u>] [--neo4j-pass=<p>] [--neo4j-db=<d>]
+                 [--run-id=<id>] [--dry-run]
   ce extract codeowners --repo=<path> --tenant=<id> [--neo4j=<uri>]
                  [--neo4j-user=<u>] [--neo4j-pass=<p>] [--neo4j-db=<d>]
                  [--dry-run]
@@ -47,6 +50,10 @@ Uso:
                  [--rules=<dir>] [--batch-size=<n>] [--dry-run] [--reset]
   ce bridge service-compute --account=<urn> [--neo4j=<uri>] [--neo4j-user=<u>]
                  [--neo4j-pass=<p>] [--neo4j-db=<d>] [--dry-run]
+  ce gov <create|get|list|patch|delete> <kind> [<urn>] --tenant=<t>
+                 [flags do kind] [--neo4j=<uri>] [--neo4j-user=<u>]
+                 [--neo4j-pass=<p>] [--neo4j-db=<d>]
+                 (kind: company | business-area | domain | capability | feature)
   ce help
 
 `
@@ -85,6 +92,8 @@ func run(ctx context.Context, args []string) error {
 		return runAllocateShared(ctx, args[1:])
 	case "bridge":
 		return runBridge(ctx, args[1:])
+	case "gov":
+		return runGov(ctx, args[1:])
 	case "help", "-h", "--help":
 		fmt.Fprint(os.Stdout, usage)
 		return nil

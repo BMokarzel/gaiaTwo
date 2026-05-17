@@ -46,10 +46,32 @@ func TestNewEndpointURN(t *testing.T) {
 }
 
 func TestNewFunctionURN(t *testing.T) {
-	urn := NewFunctionURN("costEngine", ".", "usecase", "CreateUser")
-	want := URN("urn:ce:code:costEngine:function/.!usecase.CreateUser")
+	urn := NewFunctionURN("costEngine", ".", "github.com/ex/repo/internal/usecase", "CreateUser")
+	want := URN("urn:ce:code:costEngine:function/.!github.com/ex/repo/internal/usecase!CreateUser")
 	if urn != want {
 		t.Errorf("got %q want %q", urn, want)
+	}
+	parts, err := ParseURN(urn)
+	if err != nil {
+		t.Fatalf("ParseURN: %v", err)
+	}
+	if parts.Kind != KindFunction || parts.ID != ".!github.com/ex/repo/internal/usecase!CreateUser" {
+		t.Errorf("parts=%+v", parts)
+	}
+}
+
+func TestNewModuleURN(t *testing.T) {
+	urn := NewModuleURN("costEngine", ".", "github.com/ex/repo/internal/api")
+	want := URN("urn:ce:code:costEngine:module/.!github.com/ex/repo/internal/api")
+	if urn != want {
+		t.Errorf("got %q want %q", urn, want)
+	}
+	parts, err := ParseURN(urn)
+	if err != nil {
+		t.Fatalf("ParseURN: %v", err)
+	}
+	if parts.Kind != KindModule || parts.ID != ".!github.com/ex/repo/internal/api" {
+		t.Errorf("parts=%+v", parts)
 	}
 }
 

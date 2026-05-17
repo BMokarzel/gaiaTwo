@@ -33,15 +33,15 @@ type FuncFilterOptions struct {
 }
 
 // ExtractFunctions percorre `serviceAbsPath` (diretório do `go.mod`) e
-// devolve `node.Function` por declaração relevante. Idempotente: roda
-// duas vezes sobre o mesmo source → mesmas URNs.
+// devolve `node.Function` por declaração relevante. Idempotente.
 //
 // `serviceURN` é a URN do Service dono; `serviceModulePath` é o RelPath
 // (".", "cmd/cli", etc.) — alimenta a URN da function.
-// `repoRoot` é a raiz do repo (para resolver paths relativos no campo
-// File).
+// `goModule` é o valor da diretiva `module` em go.mod — usado para
+// montar o Namespace cross-language (F-017, ADR-006).
+// `repoRoot` é a raiz do repo (para resolver paths relativos).
 func ExtractFunctions(
-	repoRoot, serviceAbsPath, serviceModulePath string,
+	repoRoot, serviceAbsPath, serviceModulePath, goModule string,
 	serviceURN node.URN,
 	repo string,
 	opts FuncFilterOptions,
@@ -94,7 +94,7 @@ func ExtractFunctions(
 			}
 		}
 
-		file, perr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+		file, perr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution|parser.ParseComments)
 		if perr != nil {
 			// Ignorar arquivos malformados: outras ferramentas pegam.
 			return nil
@@ -106,6 +106,8 @@ func ExtractFunctions(
 
 		relFile, _ := filepath.Rel(repoRoot, path)
 		relFile = filepath.ToSlash(relFile)
+
+		namespace := goNamespace(goModule, serviceAbsPath, filepath.Dir(path))
 
 		for _, decl := range file.Decls {
 			fn, ok := decl.(*ast.FuncDecl)
@@ -119,8 +121,9 @@ func ExtractFunctions(
 			signature := renderSignature(fn.Type)
 			sigSum := sha256.Sum256([]byte(signature))
 
-			urn := node.NewFunctionURN(repo, serviceModulePath, pkgName, symbol)
-			pos := fset.Position(fn.Pos())
+			urn := node.NewFunctionURN(repo, serviceModulePath, namespace, symbol)
+			start := fset.Position(fn.Pos())
+			end := fset.Position(fn.End())
 
 			out = append(out, node.Function{
 				Base: node.Base{
@@ -138,13 +141,24 @@ func ExtractFunctions(
 						Confidence: 1.0,
 					},
 				},
-				ServiceURN:    serviceURN,
-				Package:       pkgName,
-				Symbol:        symbol,
-				File:          relFile,
-				Line:          pos.Line,
+				ServiceURN:  serviceURN,
+				Namespace:   namespace,
+				Symbol:      symbol,
+				FeatureTags: extractFeatureTagsFromDoc(fn.Doc),
+				Location: node.Location{
+					File:     relFile,
+					LineInit: start.Line,
+					LineEnd:  end.Line,
+					ColInit:  start.Column,
+					ColEnd:   end.Column,
+				},
 				SignatureHash: hex.EncodeToString(sigSum[:]),
 				Signature:     signature,
+				Exported:      true,
+				// Deprecated mirrors — facilitam migração e queries legadas.
+				Package: pkgName,
+				File:    relFile,
+				Line:    start.Line,
 			})
 		}
 		return nil
@@ -153,6 +167,29 @@ func ExtractFunctions(
 		return nil, fmt.Errorf("extract functions: %w", werr)
 	}
 	return out, nil
+}
+
+// goNamespace computa o namespace cross-language para Go: combina o
+// `module` do go.mod com o caminho relativo do diretório do pacote
+// dentro do service. Exemplo:
+//
+//	goModule         = "github.com/ex/repo"
+//	serviceAbsPath   = "/tmp/repo"
+//	pkgDir           = "/tmp/repo/internal/userservice"
+//	→ "github.com/ex/repo/internal/userservice"
+//
+// Na raiz do service (pkgDir == serviceAbsPath), retorna o goModule.
+func goNamespace(goModule, serviceAbsPath, pkgDir string) string {
+	if goModule == "" {
+		// fallback raro: sem go.mod parseado, usa só rel path do dir.
+		rel, _ := filepath.Rel(serviceAbsPath, pkgDir)
+		return filepath.ToSlash(rel)
+	}
+	rel, err := filepath.Rel(serviceAbsPath, pkgDir)
+	if err != nil || rel == "." || rel == "" {
+		return goModule
+	}
+	return goModule + "/" + filepath.ToSlash(rel)
 }
 
 // pkgMatches retorna true se a lista de includes for não-vazia E o nome
@@ -263,4 +300,3 @@ func exprToString(e ast.Expr) string {
 		return fmt.Sprintf("%T", e)
 	}
 }
-

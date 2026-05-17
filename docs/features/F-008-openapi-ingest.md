@@ -1,13 +1,13 @@
 ---
 id: F-008
 title: OpenAPI ingest
-status: refined
+status: done
 modules: [code]
 depends_on: [F-007]
 modeling_impact: no
 adrs: []
 epic: E-003
-updated: 2026-05-13
+updated: 2026-05-17
 ---
 
 # F-008 — OpenAPI ingest
@@ -57,17 +57,24 @@ serviços externos / linguagens não suportadas.
 
 ## Critérios de aceite
 
-- [ ] Dado spec OpenAPI 3 com 20 paths × 2 métodos médios, quando
-      `ce ingest openapi --spec=spec.yaml --service=urn:ce:internal::service/payments`,
-      então grafo contém ~40 Endpoints linkados a esse Service, versão 1.
-- [ ] Re-rodar sem mudanças no spec: nenhuma versão nova.
-- [ ] Adicionar 1 path no spec e re-rodar: 1 Endpoint novo aparece;
+- [x] Parser stdlib-only (JSON+YAML) aceita OpenAPI 3.0/3.1 e
+      rejeita Swagger 2.0, specs vazios e ausência de `paths`.
+- [x] `ce ingest openapi --spec=… --service=urn:ce:<prov>:<acct>:service/<id>`
+      gera N Endpoints (1 por `path × método HTTP reconhecido`),
+      idempotentes por URN canônica `endpoint/<service-id>!<METHOD>:<route>`.
+- [x] Re-rodar sem mudanças no spec: ContentHash idêntico → repo
+      bitemporal não versiona (idempotência delegada).
+- [x] Adicionar 1 path no spec e re-rodar: 1 Endpoint novo aparece;
       os outros não viram versão nova.
-- [ ] Mudar `response_schema` de 1 path: aquele Endpoint vai para v2;
-      v1 ganha `valid_to`.
-- [ ] Quando F-007 também escreveu o mesmo Endpoint (mesmo
-      `method+path`), os campos `source` divergem mas o nó é o mesmo
-      (mescla via mesmo `external_id`).
+- [x] Mudar request/response schema de uma operação → `request_schema_hash`
+      / `response_schema_hash` muda → ContentHash diverge → v2.
+- [x] `source = openapi` registrado em `Source.Collector`
+      (`code/ingest/openapi`), em `Endpoint.Properties.source` e nas
+      properties da edge `DefinedIn`. Quando F-007 também escreveu o
+      mesmo Endpoint (mesmo `method+path`), o nó é o mesmo
+      (URN compartilhada) e os campos `source` divergem.
+- [x] `operationId` ausente → handler fallback `openapi:<sha8>` derivado
+      de `(method, path)`.
 
 ## Riscos / incerteza
 
@@ -82,5 +89,16 @@ serviços externos / linguagens não suportadas.
 
 ## Notas de implementação
 
-- Pacote `internal/modules/code/ingest/openapi/`.
-- Lib: `github.com/getkin/kin-openapi`.
+- Pacote `internal/modules/code/ingest/openapi/` (parser + collector + writer).
+- **Stdlib + `gopkg.in/yaml.v3`** (já no go.mod). Decisão: não trazer
+  `kin-openapi` — só consumimos um subset (`openapi`, `info.version`,
+  `paths.{p}.{method}.{operationId,summary,tags,requestBody,responses}`).
+  Schemas de request/response são reduzidos a `sha256(canonical-json)`
+  para detectar drift sem nó-Schema dedicado (F-022 fará isso).
+- URN do Endpoint reusa `node.NewEndpointURN(<account>, <id>, METHOD,
+  route)` onde `<account>` e `<id>` vêm do parse do Service URN. Isso
+  garante que F-007 (AST) e F-008 (spec) convergem para a mesma URN
+  quando o mesmo `(service, method, path)` é detectado pelos dois lados.
+- Idempotência delegada ao repo bitemporal via `Endpoint.ContentHash`.
+- CLI: `cmd/cli/ingest_openapi.go` espelha `ingest_hris` (memory|neo4j,
+  `--dry-run`, `--run-id`).

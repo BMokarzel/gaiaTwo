@@ -15,6 +15,7 @@ type Stats struct {
 	Closed     int // edges antigos fechados
 	Unchanged  int // edges já-correntes mantidos
 	Unresolved int // handles do CODEOWNERS não-resolvidos
+	Rejected   int // owners resolvidos mas rejeitados pelo lint ADR-010 (F-029)
 }
 
 // Writer aplica um `Result` ao grafo com semântica close-and-reopen
@@ -35,7 +36,7 @@ type Writer struct {
 // resolvido pelo `Nodes.GetByURN` antes do upsert. Mantém a invariante
 // de adjacência (F-011 S-001).
 func (w *Writer) Apply(ctx context.Context, res Result) (Stats, error) {
-	st := Stats{Unresolved: len(res.Unresolved)}
+	st := Stats{Unresolved: len(res.Unresolved), Rejected: len(res.Rejected)}
 
 	current, err := w.currentOwnsByFrom(ctx, res.Target)
 	if err != nil {

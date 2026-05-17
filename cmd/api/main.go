@@ -28,6 +28,9 @@ import (
 	"costEngine/internal/app/search"
 	searchctrl "costEngine/internal/app/search/controller"
 	"costEngine/internal/entity/node"
+	ghwebhook "costEngine/internal/modules/bridge/github_webhook"
+	govctrl "costEngine/internal/modules/gov/controller"
+	govservice "costEngine/internal/modules/gov/service"
 	orgctrl "costEngine/internal/modules/org/controller"
 	orgservice "costEngine/internal/modules/org/service"
 	"costEngine/internal/platform/httpserver"
@@ -67,6 +70,7 @@ func run() error {
 	writeTimeout := fs.Duration("write-timeout", 30*time.Second, "http.Server.WriteTimeout")
 	idleTimeout := fs.Duration("idle-timeout", 120*time.Second, "http.Server.IdleTimeout")
 	shutdownGrace := fs.Duration("shutdown-grace", 10*time.Second, "tempo de graceful shutdown após sinal")
+	ghSecret := fs.String("github-webhook-secret", os.Getenv("CE_GITHUB_WEBHOOK_SECRET"), "HMAC secret para POST /v1/webhooks/github (F-013); vazio desabilita")
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		return err
 	}
@@ -85,13 +89,22 @@ func run() error {
 
 	orgSvc := orgservice.New(nodes, edges)
 	orgCtrl := orgctrl.New(orgSvc)
+	govSvc := govservice.New(nodes, edges)
+	govCtrl := govctrl.New(govSvc)
 	graphCtrl := graphctrl.New(nodes, edges)
 	searchCtrl := searchctrl.New(searchAdapter{r: nodes})
+
+	registrars := []httpserver.Registrar{orgCtrl, govCtrl, graphCtrl, searchCtrl}
+	if *ghSecret != "" {
+		ghSvc := ghwebhook.New(nodes, edges)
+		registrars = append(registrars, ghwebhook.NewController(ghSvc, *ghSecret))
+		logger.Info("github webhook enabled", "path", "/v1/webhooks/github")
+	}
 
 	apiSrv := httpserver.New(httpserver.Config{
 		TenantRequired: *tenantRequired,
 		Logger:         logger,
-	}, orgCtrl, graphCtrl, searchCtrl)
+	}, registrars...)
 
 	hs := &http.Server{
 		Addr:              *addr,

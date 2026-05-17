@@ -720,6 +720,30 @@ func closeNode(n node.Node, at time.Time) node.Node {
 	case node.Squad:
 		v.NodeMeta.ValidTo = &at
 		return v
+	case node.Company:
+		v.NodeMeta.ValidTo = &at
+		return v
+	case node.BusinessArea:
+		v.NodeMeta.ValidTo = &at
+		return v
+	case node.Domain:
+		v.NodeMeta.ValidTo = &at
+		return v
+	case node.Capability:
+		v.NodeMeta.ValidTo = &at
+		return v
+	case node.Feature:
+		v.NodeMeta.ValidTo = &at
+		return v
+	case node.Epic:
+		v.NodeMeta.ValidTo = &at
+		return v
+	case node.UserStory:
+		v.NodeMeta.ValidTo = &at
+		return v
+	case node.Persona:
+		v.NodeMeta.ValidTo = &at
+		return v
 	default:
 		// fallback: respeitamos o contrato Node mas não conseguimos mutar.
 		// Implementações concretas externas devem ser registradas aqui.
@@ -774,6 +798,30 @@ func touchNode(n node.Node, at time.Time) node.Node {
 		v.NodeMeta.ObservedAt = at
 		return v
 	case node.Squad:
+		v.NodeMeta.ObservedAt = at
+		return v
+	case node.Company:
+		v.NodeMeta.ObservedAt = at
+		return v
+	case node.BusinessArea:
+		v.NodeMeta.ObservedAt = at
+		return v
+	case node.Domain:
+		v.NodeMeta.ObservedAt = at
+		return v
+	case node.Capability:
+		v.NodeMeta.ObservedAt = at
+		return v
+	case node.Feature:
+		v.NodeMeta.ObservedAt = at
+		return v
+	case node.Epic:
+		v.NodeMeta.ObservedAt = at
+		return v
+	case node.UserStory:
+		v.NodeMeta.ObservedAt = at
+		return v
+	case node.Persona:
 		v.NodeMeta.ObservedAt = at
 		return v
 	default:

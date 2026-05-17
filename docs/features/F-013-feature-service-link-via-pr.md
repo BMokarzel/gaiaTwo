@@ -1,13 +1,13 @@
 ---
 id: F-013
 title: Feature → Service link via PR label
-status: refined
-modules: [product, code, bridge]
+status: done
+modules: [bridge, code, gov]
 depends_on: [F-007, F-012]
-modeling_impact: no
+modeling_impact: yes
 adrs: []
 epic: E-005
-updated: 2026-05-13
+updated: 2026-05-17
 ---
 
 # F-013 — Feature → Service link via PR label
@@ -65,16 +65,42 @@ Arquitetura, produto Dashboard.
 
 ## Critérios de aceite
 
-- [ ] Dado PR merged com label `feature:urn:ce:internal::feature/checkout-redesign`
-      tocando arquivos em repo `payments`, quando webhook chega,
-      então edge `Realizes(checkout-redesign → payments-service)` é
-      criado.
-- [ ] Webhook chega 2x para o mesmo PR: idempotente, sem duplicidade.
-- [ ] PR sem label `feature:` é ignorado silenciosamente (log info).
-- [ ] PR com label `feature:` mas URN inexistente: erro retornado +
-      registro em fila de "pendentes" para futura resolução.
-- [ ] HMAC inválido retorna 401.
-- [ ] PR tocando 3 services cria 3 edges para a mesma feature.
+- [x] Dado PR merged com label `feature:urn:ce:gov:acme:feature/checkout-redesign`
+      tocando arquivos em repo `acme/api`, quando webhook chega,
+      então edge `Realizes(checkout-redesign → acme/api:services/billing)`
+      é criado (longest-prefix-match em `Service.ModulePath`).
+- [x] Webhook chega 2x para o mesmo PR: idempotente via
+      `DeterministicID(from, REALIZES, to, mergedAt)`.
+- [x] PR sem label `feature:` é ignorado (200 + `{ignored:true}`).
+- [x] PR com label `feature:` mas URN inexistente: 400
+      `feature_unresolved` (fila de pendentes é backlog explícito —
+      não MVP).
+- [x] HMAC inválido retorna 401.
+- [x] PR tocando N services distintos cria N edges para a mesma feature.
+
+## Estado de implementação (2026-05-17)
+
+- `internal/entity/edge`: `TypeRealizes`, struct `Realizes`, adjacency
+  `Feature→Service` e teste smoke adicionados.
+- `internal/modules/bridge/github_webhook/`: pacote completo
+  (`doc.go`, `hmac.go`, `payload.go`, `resolver.go`, `service.go`,
+  `controller.go`) com `POST /v1/webhooks/github`.
+- `cmd/api`: flag `--github-webhook-secret` (env
+  `CE_GITHUB_WEBHOOK_SECRET`) habilita o registrar. Vazio mantém
+  endpoint desligado (fail-closed).
+- Testes: HMAC (happy + 6 falhas), payload parse (happy / ignored /
+  malformed), resolver (longest-prefix, sem fallback raiz, distinct
+  services), service.Ingest (idempotente, feature ausente, no-op),
+  controller end-to-end (HMAC bad, happy, evento não-PR).
+
+## Backlog vivo
+
+- Fila de pendentes para Features ausentes (replay quando a URN
+  aparece no grafo).
+- Hidratação automática da lista de arquivos via GitHub REST API
+  (hoje o payload assume `files[]` enriquecido por proxy).
+- Suporte a múltiplos providers (GitLab/Bitbucket).
+- Decay de confidence ao longo do tempo.
 
 ## Riscos / incerteza
 
@@ -88,6 +114,10 @@ Arquitetura, produto Dashboard.
 
 ## Notas de implementação
 
-- Handler em `internal/modules/product/webhook/github/`.
-- Verificação HMAC SHA-256.
-- Idempotência via `(pr_url, feature_urn, service_urn)`.
+- Handler em `internal/modules/bridge/github_webhook/` (plano `bridge`
+  porque cruza gov ↔ code; `product` foi descartado — não há plano
+  "product" no monolito modular atual).
+- Verificação HMAC SHA-256 com `crypto/subtle.ConstantTimeCompare`.
+- Idempotência via `DeterministicID(feature, REALIZES, service, mergedAt)`
+  no nível do `EdgeRepository` (mais simples que carregar tupla
+  `(pr_url, …)` como chave externa).

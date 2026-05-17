@@ -16,9 +16,16 @@ const (
 	ProviderCode ProviderID = "code"
 
 	// ProviderOrg é o "provider lógico" do org plane (F-010). Hospeda
-	// nós Person/Team/Squad/etc. O slot `<account>` da URN é reusado
-	// como `<tenant>` (ex.: "acme") para suportar multi-org no futuro.
+	// nós Person/Team/Squad/Role/etc. O slot `<account>` da URN é
+	// reusado como `<tenant>` (ex.: "acme") para suportar multi-org.
 	ProviderOrg ProviderID = "org"
+
+	// ProviderGov é o "provider lógico" do governance plane (E-008).
+	// Hospeda Domain/Capability/Feature/Epic/UserStory/Persona. O slot
+	// `<account>` da URN é o `<company>` (tenant). Distinto de
+	// ProviderOrg para deixar claro o eixo: org = quem trabalha,
+	// gov = o que é entregue / por quê.
+	ProviderGov ProviderID = "gov"
 )
 
 // Provider é um nó-escopo: a "raiz" lógica de um provedor de cloud.

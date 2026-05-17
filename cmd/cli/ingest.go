@@ -27,8 +27,10 @@ func runIngest(ctx context.Context, args []string) error {
 		return runIngestCUR(ctx, args[1:])
 	case "hris":
 		return runIngestHRIS(ctx, args[1:])
+	case "openapi":
+		return runIngestOpenAPI(ctx, args[1:])
 	default:
-		return fmt.Errorf("kind não suportado: %q (suportados: cur, hris)", args[0])
+		return fmt.Errorf("kind não suportado: %q (suportados: cur, hris, openapi)", args[0])
 	}
 }
 
