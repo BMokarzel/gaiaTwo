@@ -5,7 +5,8 @@
       "Bash(go test:*)",
       "Bash(go get:*)",
       "Bash(npm run:*)",
-      "Bash(go run:*)"
+      "Bash(go run:*)",
+      "Bash(npm install:*)"
     ]
   }
 }

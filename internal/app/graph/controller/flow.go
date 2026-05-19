@@ -123,12 +123,14 @@ func (c *Controller) handleFlow(w http.ResponseWriter, r *http.Request, start no
 				if len(seenEdges) >= maxFlowResults {
 					break
 				}
-				seenEdges[e.ID()] = e
 				peer := otherEnd(e, urn)
 				if peer == "" {
 					continue
 				}
 				if _, ok := seenNodes[peer]; ok {
+					// peer já aceito no sub-grafo — registra a edge
+					// que conecta dois nós conhecidos.
+					seenEdges[e.ID()] = e
 					continue
 				}
 				if len(seenNodes) >= maxFlowResults {
@@ -139,6 +141,18 @@ func (c *Controller) handleFlow(w http.ResponseWriter, r *http.Request, start no
 					// edge aponta pra nó sem versão visível — omitir.
 					continue
 				}
+				// A view de detalhe é o sub-grafo de UM endpoint
+				// específico. Endpoints irmãos (outros handlers do
+				// mesmo Module/Service) não pertencem a esse fluxo:
+				// sem o filtro abaixo, o BFS sobe via CONTAINS para
+				// Module/Service e desce para os irmãos, misturando
+				// handlers/calls/types de endpoints distintos.
+				// Filtra também a edge para não deixar referência
+				// órfã apontando para um peer omitido.
+				if n.Kind() == node.KindEndpoint && peer != start {
+					continue
+				}
+				seenEdges[e.ID()] = e
 				seenNodes[peer] = n
 				next = append(next, peer)
 			}

@@ -115,6 +115,99 @@ func TestFlow_EndpointReturnsConnectedSubgraph(t *testing.T) {
 	}
 }
 
+// TestFlow_ExcludesSiblingEndpoints valida que /flow a partir de
+// um endpoint NÃO inclui outros endpoints irmãos contidos no mesmo
+// Module (o BFS sobe via CONTAINS e tentaria descer para os irmãos
+// sem o filtro de KindEndpoint).
+func TestFlow_ExcludesSiblingEndpoints(t *testing.T) {
+	h, r := fixture(t)
+	ctx := context.Background()
+	now := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+
+	svc := node.Service{
+		Base: node.Base{
+			NodeURN:  node.NewServiceURN("acme", "."),
+			NodeKind: node.KindService,
+			NodeMeta: node.Meta{Version: 1, ValidFrom: now, ObservedAt: now, Confidence: 1},
+		},
+		Repo: "acme", ModulePath: ".", Language: "typescript",
+	}
+	mod := node.Module{
+		Base: node.Base{
+			NodeURN:  node.NewModuleURN("acme", ".", "src"),
+			NodeKind: node.KindModule,
+			NodeMeta: node.Meta{Version: 1, ValidFrom: now, ObservedAt: now, Confidence: 1},
+		},
+		ServiceURN: svc.URN(), Namespace: "src", Path: "src", Language: "typescript",
+	}
+	epA := node.Endpoint{
+		Base: node.Base{
+			NodeURN:  node.NewEndpointURN("acme", ".", "GET", "/users/:id"),
+			NodeKind: node.KindEndpoint,
+			NodeMeta: node.Meta{Version: 1, ValidFrom: now, ObservedAt: now, Confidence: 1},
+		},
+		ServiceURN: svc.URN(), ModuleURN: mod.URN(),
+		Method: "GET", Route: "/users/:id", Handler: "findById", Framework: "express",
+	}
+	epB := node.Endpoint{
+		Base: node.Base{
+			NodeURN:  node.NewEndpointURN("acme", ".", "POST", "/users"),
+			NodeKind: node.KindEndpoint,
+			NodeMeta: node.Meta{Version: 1, ValidFrom: now, ObservedAt: now, Confidence: 1},
+		},
+		ServiceURN: svc.URN(), ModuleURN: mod.URN(),
+		Method: "POST", Route: "/users", Handler: "create", Framework: "express",
+	}
+
+	for _, n := range []node.Node{svc, mod, epA, epB} {
+		if err := r.Upsert(ctx, n); err != nil {
+			t.Fatalf("upsert: %v", err)
+		}
+	}
+	mkContains := func(from, to node.URN) edge.Contains {
+		return edge.Contains{Base: edge.Base{
+			EdgeID: edge.DeterministicID(from, edge.TypeContains, to, now),
+			EdgeType: edge.TypeContains, FromURN: from, ToURN: to,
+			EdgeMeta: edge.Meta{ValidFrom: now, ObservedAt: now, Directional: true, Confidence: 1},
+		}}
+	}
+	edges := []struct {
+		e        edge.Edge
+		from, to node.Kind
+	}{
+		{mkContains(svc.URN(), mod.URN()), node.KindService, node.KindModule},
+		{mkContains(mod.URN(), epA.URN()), node.KindModule, node.KindEndpoint},
+		{mkContains(mod.URN(), epB.URN()), node.KindModule, node.KindEndpoint},
+	}
+	for _, x := range edges {
+		if err := r.AsEdgeRepo().Upsert(ctx, x.e, x.from, x.to); err != nil {
+			t.Fatalf("edge upsert: %v", err)
+		}
+	}
+
+	rr := doReq(t, h, "GET", "/v1/architecture/nodes/"+string(epA.URN())+"/flow", nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", rr.Code, rr.Body.String())
+	}
+	var body struct {
+		Root  string             `json:"root"`
+		Nodes map[string][]any   `json:"nodes"`
+		Edges []map[string]any   `json:"edges"`
+	}
+	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(body.Nodes["endpoint"]) != 1 {
+		t.Fatalf("expected only root endpoint, got %d", len(body.Nodes["endpoint"]))
+	}
+	// Nenhuma edge pode apontar para o endpoint irmão.
+	for _, e := range body.Edges {
+		if e["from"] == string(epB.URN()) || e["to"] == string(epB.URN()) {
+			t.Fatalf("edge para endpoint irmão vazou: %+v", e)
+		}
+	}
+}
+
 func TestFlow_NotFound(t *testing.T) {
 	h, _ := fixture(t)
 	rr := doReq(t, h, "GET", "/v1/architecture/nodes/urn:ce:code:nope:endpoint/x!GET:/y/flow", nil)
