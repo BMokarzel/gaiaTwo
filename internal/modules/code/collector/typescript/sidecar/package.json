@@ -1,0 +1,24 @@
+{
+  "name": "@costengine/typescript-sidecar",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TypeScript code collector sidecar for CostEngine (F-030). Spawned by the Go collector; reads ConfigEnvelope from stdin, emits NDJSON to stdout.",
+  "license": "UNLICENSED",
+  "main": "dist/sidecar.bundle.js",
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/sidecar.bundle.js --minify",
+    "build:dev": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/sidecar.bundle.js --sourcemap",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ts-morph": "^24.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.5.0"
+  }
+}

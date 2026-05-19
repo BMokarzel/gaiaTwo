@@ -1,0 +1,68 @@
+/*
+ * Design tokens — costEngine web.
+ * Inspirado no design system do `tree/apps/web` (dark-first, accent
+ * green, monospace para código). Mantemos só o que precisamos.
+ */
+
+:root {
+  /* Cores — modo escuro (default) */
+  --bg-canvas: #0a0a0c;
+  --bg-surface: #111115;
+  --bg-elevated: #18181f;
+  --bg-raised: #22222c;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --border-focus: #39ff6e;
+
+  --text-primary: #f0f0f5;
+  --text-secondary: #b8b8c4;
+  --text-muted: #6b6b80;
+  --text-faint: #44444f;
+
+  /* Acentos por tipo de nó */
+  --accent-green: #39ff6e;   /* service, endpoint, function */
+  --accent-blue: #00bfff;    /* database, persistence */
+  --accent-orange: #ff7a1a;  /* control flow */
+  --accent-purple: #b47aff;  /* framework */
+  --accent-red: #ff3c8e;     /* error, throw */
+  --accent-yellow: #ffd43b;
+  --accent-teal: #2ee5c7;    /* call / messaging */
+
+  /* HTTP methods */
+  --method-get: #00bfff;
+  --method-post: #39ff6e;
+  --method-put: #ffd43b;
+  --method-patch: #b47aff;
+  --method-delete: #ff3c8e;
+
+  /* Sombras */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 36px rgba(0, 0, 0, 0.45);
+
+  /* Raios */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  /* Tipografia */
+  --font-sans: "Space Grotesk", -apple-system, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Menlo, monospace;
+}
+
+[data-theme="light"] {
+  --bg-canvas: #f4f4f8;
+  --bg-surface: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-raised: #f0f0f5;
+  --border: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.14);
+  --border-focus: #1a9940;
+
+  --text-primary: #0a0a0c;
+  --text-secondary: #2a2a35;
+  --text-muted: #666666;
+  --text-faint: #999999;
+}

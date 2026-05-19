@@ -1,0 +1,48 @@
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 200px;
+  padding: 16px 12px;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  padding: 4px 8px 6px;
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 14px;
+}
+.link:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.linkActive {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border-left: 2px solid var(--accent-green);
+  padding-left: 8px;
+}
+
+.glyph {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  width: 14px;
+  text-align: center;
+}
+.linkActive .glyph { color: var(--accent-green); }

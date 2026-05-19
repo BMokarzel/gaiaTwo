@@ -1,0 +1,4 @@
+node_modules/
+# dist/sidecar.bundle.js is committed (stub initially, real bundle on build).
+# Source maps not committed.
+dist/*.map

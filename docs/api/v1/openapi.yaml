@@ -10,7 +10,10 @@ info:
     Convenções:
       - Toda resposta carrega `X-Request-ID` (echo do header de entrada se
         válido, geração nova caso contrário).
-      - Erros usam o envelope `ErrorBody` com `code` machine-readable.
+      - Respostas 4xx/5xx seguem **RFC 7807** (`application/problem+json`)
+        com o schema `Problem`. O campo `code` é namespaced e estável; os
+        demais (`title`, `detail`) podem mudar entre versões. Detalhes em
+        `docs/api/v1/errors.md`.
       - Tenant é resolvido pelo middleware via `X-Tenant-ID`. Em modo
         `--tenant-required`, ausência do header devolve 401.
       - Paginação cursor-based em `/search`. Cursor é opaco; alterar a
@@ -405,39 +408,92 @@ components:
     NotFound:
       description: Recurso não encontrado.
       content:
-        application/json:
-          schema: { $ref: "#/components/schemas/ErrorBody" }
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
     BadRequest:
       description: Parâmetro inválido.
       content:
-        application/json:
-          schema: { $ref: "#/components/schemas/ErrorBody" }
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
     Unauthorized:
       description: Auth requerido e ausente.
       content:
-        application/json:
-          schema: { $ref: "#/components/schemas/ErrorBody" }
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Conflict:
+      description: |
+        Conflito de estado (ex.: lookup ambíguo, recurso já existe).
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Unprocessable:
+      description: |
+        Semanticamente inválido (ex.: ciclo detectado em ReportsTo).
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Internal:
+      description: Erro interno; corpo não vaza `err.Error()`.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
 
   schemas:
-    ErrorBody:
+    Problem:
       type: object
+      description: |
+        Envelope de erro RFC 7807 (`application/problem+json`) com extensões.
+
+        - `code` é o identificador estável (`<modulo>.<entidade>.<situacao>`)
+          que clientes devem matchear. Demais campos são informativos.
+        - `type` deriva de `code` no formato `ce:err:<code>` — URI estável.
+        - Erros podem expor campos extras top-level (`urn`, `reason`, `kind`,
+          `path`, etc.) achatados ao lado dos campos fixos.
+        - Códigos novos podem aparecer em release minor; clientes devem
+          tratar códigos desconhecidos como genéricos pelo `status`.
+      required: [type, title, status, code]
+      additionalProperties: true
       properties:
-        error:
-          type: object
-          required: [code, message]
-          properties:
-            code:
-              type: string
-              enum:
-                - bad_request
-                - not_found
-                - ambiguous
-                - unauthorized
-                - forbidden
-                - internal
-                - unimplemented
-            message: { type: string }
-            request_id: { type: string }
+        type:
+          type: string
+          description: URI estável `ce:err:<code>`.
+          example: ce:err:org.team.not_found
+        title:
+          type: string
+          description: Título humano curto.
+          example: Team not found
+        status:
+          type: integer
+          description: Status HTTP (redundante com a linha HTTP — intencional, RFC 7807).
+          example: 404
+        code:
+          type: string
+          description: |
+            Identificador namespaced `<modulo>.<entidade>.<situacao>`.
+
+            Conjunto conhecido hoje (não-exaustivo):
+
+            - `org.team.not_found`, `org.squad.not_found`,
+              `org.person.not_found`, `org.urn.invalid`,
+              `org.reports.cycle`
+            - `code.service.not_found`, `code.endpoint.not_found`,
+              `code.function.not_found`, `code.urn.invalid`
+            - `infra.account.not_found`, `infra.region.not_found`,
+              `infra.compute.not_found`, `infra.persistence.not_found`,
+              `infra.network.not_found`, `infra.urn.invalid`
+            - `gov.<kind>.not_found`, `gov.<kind>.conflict`,
+              `gov.urn.invalid`, `gov.validation`
+            - Fallback (sentinels de repository sem erro tipado):
+              `not_found`, `ambiguous`, `conflict`, `bad_request`,
+              `internal`
+          example: org.team.not_found
+        detail:
+          type: string
+          description: Mensagem técnica; pode mudar entre versões.
+          example: "org: team not found: urn:ce:org:team:foo"
+        trace_id:
+          type: string
+          description: Identificador de trace correlato (vem do httpserver).
 
     NodeView:
       type: object

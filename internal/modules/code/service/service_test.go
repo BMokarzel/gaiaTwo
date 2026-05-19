@@ -45,8 +45,18 @@ func h() {}
 	if err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
-	if st.Services != 1 || st.Functions != 1 || st.Endpoints != 1 || st.Edges != 2 {
+	// Após a extensão do Writer, gravamos também Modules e todas as
+	// edges estruturais (Contains, Invokes, etc.), não só DefinedIn.
+	// Por isso Edges aqui é > 2 (legado). Mantemos asserts mínimos de
+	// nós-canônicos para evitar fragilidade com mudanças no walker.
+	if st.Services != 1 || st.Functions != 1 || st.Endpoints != 1 {
 		t.Errorf("stats=%+v", st)
+	}
+	if st.Modules < 1 {
+		t.Errorf("expected Modules >= 1, got stats=%+v", st)
+	}
+	if st.Edges < 2 {
+		t.Errorf("expected Edges >= 2 (DefinedIn legacy minimum), got stats=%+v", st)
 	}
 
 	// Roundtrip: node listing finds them.

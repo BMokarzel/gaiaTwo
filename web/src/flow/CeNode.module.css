@@ -1,0 +1,53 @@
+.node {
+  width: 240px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-shadow: var(--shadow-sm);
+}
+.node.root {
+  border-color: var(--accent-green);
+  box-shadow: 0 0 0 2px rgba(57, 255, 110, 0.18), var(--shadow-md);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.kind {
+  color: var(--text-muted);
+}
+.kindService    { color: var(--accent-green); }
+.kindEndpoint   { color: var(--accent-green); }
+.kindFunction   { color: var(--accent-teal); }
+.kindCall       { color: var(--accent-teal); }
+.kindType       { color: var(--accent-blue); }
+.kindVariable   { color: var(--accent-blue); }
+.kindFramework  { color: var(--accent-purple); }
+.kindModule     { color: var(--accent-orange); }
+
+.primary {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.secondary {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

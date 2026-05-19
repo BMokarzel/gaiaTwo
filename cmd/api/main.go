@@ -71,8 +71,13 @@ func run() error {
 	idleTimeout := fs.Duration("idle-timeout", 120*time.Second, "http.Server.IdleTimeout")
 	shutdownGrace := fs.Duration("shutdown-grace", 10*time.Second, "tempo de graceful shutdown após sinal")
 	ghSecret := fs.String("github-webhook-secret", os.Getenv("CE_GITHUB_WEBHOOK_SECRET"), "HMAC secret para POST /v1/webhooks/github (F-013); vazio desabilita")
+	seedCode := fs.String("seed-code", "", "se setado (junto com --seed-repo), roda typescript.Collect sobre este path no startup e popula o repo — útil em modo memory para iterar com a web UI")
+	seedRepo := fs.String("seed-repo", "", "nome canônico do repo do --seed-code (vai pro slot <account> da URN)")
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		return err
+	}
+	if (*seedCode != "") != (*seedRepo != "") {
+		return fmt.Errorf("--seed-code e --seed-repo precisam ser usados juntos")
 	}
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
@@ -86,6 +91,12 @@ func run() error {
 		return fmt.Errorf("repo: %w", err)
 	}
 	defer closeRepo()
+
+	if *seedCode != "" {
+		if err := seedFromTypeScript(ctx, *seedCode, *seedRepo, nodes, edges, logger); err != nil {
+			return fmt.Errorf("seed: %w", err)
+		}
+	}
 
 	orgSvc := orgservice.New(nodes, edges)
 	orgCtrl := orgctrl.New(orgSvc)

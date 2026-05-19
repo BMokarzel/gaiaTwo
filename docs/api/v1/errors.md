@@ -5,7 +5,7 @@
 >
 > Relacionado: F-016 (arquitetura modular v2), ADR-005.
 >
-> Atualizado: 2026-05-16
+> Atualizado: 2026-05-18
 
 ## Shape do payload
 
@@ -32,6 +32,7 @@ Campos:
 | `status` | `HTTPStatus()` do erro tipado, ou inferido do sentinel | redundante com a linha HTTP, intencional (RFC 7807) |
 | `code` | `<modulo>.<entidade>.<situacao>` lowercase | chave estável para clientes |
 | `detail` | `Error()` do erro tipado | mensagem técnica; pode mudar |
+| `trace_id` | injetado pelo `httpserver` | omitido (`omitempty`) quando não há trace |
 | `extras` (top-level) | `Details()` do erro tipado | campos achados em top-level (não num objeto aninhado) |
 
 ## Convenção de `code`
@@ -81,6 +82,20 @@ acima). Devem desaparecer à medida que cada caminho recebe erro tipado.
 | `infra.persistence.not_found` | 404 | Persistence not found | `urn` | GET de Persistence inexistente |
 | `infra.network.not_found` | 404 | Network not found | `urn` | GET de Network inexistente |
 | `infra.urn.invalid` | 400 | Invalid URN | `urn`, `reason` | URN malformada ou Kind incompatível |
+
+### `gov` (modules/gov/errs.go)
+
+`<kind>` se expande em runtime para o Kind real do governance node
+(`capability`, `feature`, `domain`, `businessarea`, `company`, `epic`,
+`userstory`, `persona`, `role`, ...). Clientes podem matchear pelo
+prefixo (`strings.HasPrefix(code, "gov.")`) quando o sufixo for variável.
+
+| `code` | Status | Title | Extras | Disparado por |
+|---|---|---|---|---|
+| `gov.<kind>.not_found` | 404 | `<kind>` not found | `urn`, `kind` | GET de governance node inexistente |
+| `gov.<kind>.conflict` | 409 | `<kind>` already exists | `urn`, `kind` | Create de governance node já existente |
+| `gov.urn.invalid` | 400 | Invalid URN | `urn`, `expected_kind`, `reason` | URN malformada ou Kind incompatível |
+| `gov.validation` | 400 | Validation failed | `field`, `reason` | Payload de Create/Update com campo obrigatório vazio ou formato errado |
 
 ### Fallback (`core/errs.Render`)
 

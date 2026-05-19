@@ -28,6 +28,8 @@ func (c *Controller) dispatchNode(w http.ResponseWriter, r *http.Request) {
 		c.handleNeighbors(w, r, node.URN(strings.TrimSuffix(rest, "/neighbors")))
 	case strings.HasSuffix(rest, "/history"):
 		c.handleHistory(w, r, node.URN(strings.TrimSuffix(rest, "/history")))
+	case strings.HasSuffix(rest, "/flow"):
+		c.handleFlow(w, r, node.URN(strings.TrimSuffix(rest, "/flow")))
 	default:
 		c.handleGetNode(w, r, node.URN(rest))
 	}

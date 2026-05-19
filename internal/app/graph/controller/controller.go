@@ -38,6 +38,7 @@ func New(nodes repository.NodeRepository, edges repository.EdgeRepository) *Cont
 // `{rest...}` (Go 1.22+) captura URNs com `/` e `:`; o dispatch
 // interno (`dispatchNode`) reparte por sufixo (`/neighbors`, `/history`).
 func (c *Controller) Register(mux *http.ServeMux) {
+	mux.HandleFunc("GET /v1/architecture/nodes", c.handleListNodes)
 	mux.HandleFunc("GET /v1/architecture/nodes/{rest...}", c.dispatchNode)
 	mux.HandleFunc("GET /v1/architecture/paths", c.handlePaths)
 }

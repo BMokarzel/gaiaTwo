@@ -1,0 +1,19 @@
+.shell {
+  display: grid;
+  grid-template-rows: 52px 1fr;
+  grid-template-columns: 200px 1fr;
+  grid-template-areas:
+    "top top"
+    "rail main";
+  height: 100%;
+  min-height: 100vh;
+}
+
+.top  { grid-area: top; }
+.rail { grid-area: rail; min-height: 0; }
+.main {
+  grid-area: main;
+  min-height: 0;
+  overflow: auto;
+  background: var(--bg-canvas);
+}
