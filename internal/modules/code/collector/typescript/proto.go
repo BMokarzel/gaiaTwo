@@ -108,7 +108,8 @@ type CallPayload struct {
 	FromFunctionURN   string         `json:"from_function_urn"`
 	Subkind           string         `json:"subkind"` // "http!" | "db!" | "mq!" | "in-process" | "unresolved!"
 	CalleeExpression  string         `json:"callee_expression"`
-	TargetHint        string         `json:"target_hint,omitempty"` // URL pattern, table name, etc.
+	TargetHint        string         `json:"target_hint,omitempty"`     // URL pattern, table name, etc.
+	FrameworkName     string         `json:"framework_name,omitempty"` // npm package quando classificado (axios, fetch, typeorm, ...)
 	Location          SourceLocation `json:"location"`
 }
 

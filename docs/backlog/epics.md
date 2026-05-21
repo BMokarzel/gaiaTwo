@@ -72,6 +72,7 @@ linkados a infra.
 **Features:**
 - [F-014](../features/F-014-rest-architecture-traversal.md) — REST `/v1/architecture/*` (traversal de grafo) — `refined`
 - [F-015](../features/F-015-rest-teams-hierarchy.md) — REST `/v1/teams/*` (hierarquia org) — `refined`
+- [F-031](../features/F-031-web-architecture-viewer.md) — Web: visualizador de arquitetura em 3 níveis — `in-progress`
 
 ---
 

@@ -49,6 +49,8 @@
 .canvas {
   position: relative;
   min-height: 0;
+  overflow: hidden;
+  display: flex;
 }
 
 .status {

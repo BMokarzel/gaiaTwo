@@ -1,24 +1,20 @@
-// Detalhe de Endpoint — busca /flow e renderiza o sub-grafo completo
+// Steps de um Endpoint — sub-grafo derivado de `/flow`
 // (service ← module → endpoint → function/call/type/variable/framework)
-// num canvas react-flow.
+// renderizado num canvas react-flow.
 //
-// URN é extraída via splat (`*`) porque contém `:` e `/`. Não
-// usar decodeURIComponent — o backend e o react-router já lidam com
-// o URN cru.
+// URN é reconstruída via splat (`*`) porque contém `:` e `/`. O back
+// link aponta pra `/services/:repo/endpoints` (extraímos `repo` da
+// URN). Antigo: EndpointDetailPage.
 
 import { useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Background, BackgroundVariant, Controls, MiniMap, ReactFlow,
-} from "@xyflow/react";
 import { getFlow } from "@/api/graph";
+import { repoFromURN } from "@/api/urn";
 import type { EndpointData } from "@/api/types";
-import { CeNode } from "@/flow/CeNode";
+import { FlowCanvas } from "@/flow/FlowCanvas";
 import { layoutFlow } from "@/flow/layout";
 import styles from "./EndpointDetailPage.module.css";
-
-const nodeTypes = { ce: CeNode };
 
 type MethodVariant = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 function methodVariant(m?: string): MethodVariant | undefined {
@@ -33,11 +29,12 @@ function methodVariant(m?: string): MethodVariant | undefined {
   return undefined;
 }
 
-export function EndpointDetailPage() {
+export function EndpointStepsPage() {
   const params = useParams();
-  // O splat vem em params["*"]; em rotas com `:urn/*` o `urn` é
-  // só o primeiro segmento, então reconstruímos.
+  // Splat traz o resto da URN após `:urn`. Reconstruímos junto.
   const urn = [params.urn, params["*"]].filter(Boolean).join("/");
+  const repo = repoFromURN(urn);
+  const backTo = repo ? `/services/${repo}/endpoints` : "/services";
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["flow", urn],
@@ -47,7 +44,6 @@ export function EndpointDetailPage() {
 
   const layout = useMemo(() => (data ? layoutFlow(data) : null), [data]);
 
-  // Encontra o NodeView do endpoint raiz para o cabeçalho.
   const rootEndpoint = useMemo(() => {
     if (!data) return null;
     return data.nodes.endpoint.find((n) => n.urn === data.root) ?? null;
@@ -59,7 +55,7 @@ export function EndpointDetailPage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <Link to="/endpoints" className={styles.back}>← endpoints</Link>
+        <Link to={backTo} className={styles.back}>← endpoints</Link>
         {variant && (
           <span className={`${styles.method} ${styles[variant]}`}>{method}</span>
         )}
@@ -75,17 +71,11 @@ export function EndpointDetailPage() {
           </div>
         )}
         {layout && (
-          <ReactFlow
+          <FlowCanvas
             nodes={layout.nodes}
             edges={layout.edges}
-            nodeTypes={nodeTypes}
-            fitView
-            proOptions={{ hideAttribution: true }}
-          >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
-            <MiniMap pannable zoomable />
-            <Controls />
-          </ReactFlow>
+            bbox={layout.bbox}
+          />
         )}
       </div>
     </div>

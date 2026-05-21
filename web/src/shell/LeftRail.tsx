@@ -1,13 +1,13 @@
-// Rail vertical à esquerda — navegação principal entre as views
-// "Services" e "Endpoints". Detalhe de endpoint é alcançado via clique
-// nas listas, não daqui.
+// Rail vertical à esquerda — entrada única em "Services". Os demais
+// níveis (arquitetura, endpoints do service, steps de endpoint) são
+// alcançados via clique nas listas / nodes, mantendo a navegação
+// hierárquica (F-031).
 
 import { NavLink } from "react-router-dom";
 import styles from "./LeftRail.module.css";
 
 const items: { to: string; label: string; glyph: string }[] = [
   { to: "/services", label: "Services", glyph: "▣" },
-  { to: "/endpoints", label: "Endpoints", glyph: "→" },
 ];
 
 export function LeftRail() {

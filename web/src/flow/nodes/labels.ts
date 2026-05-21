@@ -1,16 +1,14 @@
-// Custom react-flow node — renderiza um NodeView do costEngine com
-// rótulo primário escolhido conforme o Kind (route p/ endpoint, symbol
-// p/ function, etc.).
+// Rótulos compartilhados entre os shape nodes (Round/Diamond/Rect).
+// Cada Kind tem regras próprias de "qual campo de NodeView.data vira o
+// label primário e o secundário". Mantemos isso aqui em vez de
+// duplicar em cada componente.
 
-import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type {
   CallData, EndpointData, FrameworkData, FunctionData, ModuleData,
   ServiceData, TypeData, VariableData,
 } from "@/api/types";
-import type { FlowNodeData } from "./layout";
-import styles from "./CeNode.module.css";
 
-function primaryLabel(kind: string, data: Record<string, unknown>): string {
+export function primaryLabel(kind: string, data: Record<string, unknown>): string {
   switch (kind) {
     case "service": {
       const d = data as ServiceData;
@@ -49,7 +47,7 @@ function primaryLabel(kind: string, data: Record<string, unknown>): string {
   }
 }
 
-function secondary(kind: string, data: Record<string, unknown>): string | undefined {
+export function secondaryLabel(kind: string, data: Record<string, unknown>): string | undefined {
   switch (kind) {
     case "function": {
       const d = data as FunctionData;
@@ -72,32 +70,15 @@ function secondary(kind: string, data: Record<string, unknown>): string | undefi
   }
 }
 
-const kindClass: Record<string, string> = {
-  service: styles.kindService,
-  module: styles.kindModule,
-  endpoint: styles.kindEndpoint,
-  function: styles.kindFunction,
-  call: styles.kindCall,
-  type: styles.kindType,
-  variable: styles.kindVariable,
-  framework: styles.kindFramework,
+// Map de Kind → classe CSS de cor (aplicada ao header "kind" e ao
+// realce do shape). Mantemos um único map p/ todos os shapes.
+export const kindColorVar: Record<string, string> = {
+  service: "var(--accent-green)",
+  endpoint: "var(--accent-green)",
+  function: "var(--accent-teal)",
+  call: "var(--accent-teal)",
+  type: "var(--accent-blue)",
+  variable: "var(--accent-blue)",
+  framework: "var(--accent-purple)",
+  module: "var(--accent-orange)",
 };
-
-export function CeNode({ data }: NodeProps) {
-  const fd = data as FlowNodeData;
-  const { view, kind, isRoot } = fd;
-  const sub = secondary(kind, view.data);
-  return (
-    <div className={`${styles.node} ${isRoot ? styles.root : ""}`}>
-      <Handle type="target" position={Position.Left} />
-      <div className={styles.header}>
-        <span className={`${styles.kind} ${kindClass[kind] ?? ""}`}>
-          {kind}
-        </span>
-      </div>
-      <div className={styles.primary}>{primaryLabel(kind, view.data)}</div>
-      {sub && <div className={styles.secondary}>{sub}</div>}
-      <Handle type="source" position={Position.Right} />
-    </div>
-  );
-}

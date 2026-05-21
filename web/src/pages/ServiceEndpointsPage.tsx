@@ -1,15 +1,18 @@
-// Lista de Endpoints. Cada linha leva à página de detalhe (/flow).
+// Endpoints de um Service. Lista filtrada por `service_urn` no cliente
+// (backend ainda não expõe filtro server-side; ver F-031 gaps).
 //
-// URN do endpoint contém `:` e `/` — não fazemos encode aqui porque
-// react-router preserva o splat e o backend usa `{rest...}`. Não
-// usar encodeURIComponent: quebraria a rota no servidor.
+// Co-irmã de `ServiceArchitecturePage` sob `/services/:repo`.
 
 import { useMemo, useState } from "react";
+import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { listEndpoints } from "@/api/graph";
+import { buildServiceURN } from "@/api/urn";
 import type { EndpointData, NodeView } from "@/api/types";
 import { NodeRow } from "@/components/NodeRow";
 import pageStyles from "./Page.module.css";
+import tabStyles from "./ServiceTabs.module.css";
+import headerStyles from "./EndpointDetailPage.module.css";
 
 type MethodVariant = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -25,18 +28,29 @@ function methodVariant(m?: string): MethodVariant | undefined {
   return undefined;
 }
 
-export function EndpointsPage() {
+export function ServiceEndpointsPage() {
+  const { repo = "" } = useParams();
+  const serviceURN = buildServiceURN(repo);
   const [filter, setFilter] = useState("");
+
   const { data, isLoading, error } = useQuery({
-    queryKey: ["endpoints"],
+    queryKey: ["endpoints", repo],
     queryFn: ({ signal }) => listEndpoints(500, signal),
+    enabled: Boolean(repo),
   });
 
-  const results = data?.results ?? [];
+  const ofService = useMemo(() => {
+    const all = data?.results ?? [];
+    return all.filter((n) => {
+      const d = n.data as EndpointData;
+      return d.service_urn === serviceURN;
+    });
+  }, [data, serviceURN]);
+
   const filtered = useMemo(() => {
-    if (!filter.trim()) return results;
+    if (!filter.trim()) return ofService;
     const f = filter.toLowerCase();
-    return results.filter((n: NodeView) => {
+    return ofService.filter((n: NodeView) => {
       const d = n.data as EndpointData;
       return (
         n.urn.toLowerCase().includes(f) ||
@@ -45,15 +59,22 @@ export function EndpointsPage() {
         (d.method ?? "").toLowerCase().includes(f)
       );
     });
-  }, [results, filter]);
+  }, [ofService, filter]);
 
   return (
     <div className={pageStyles.page}>
-      <header className={pageStyles.header}>
-        <h1 className={pageStyles.title}>Endpoints</h1>
-        <span className={pageStyles.subtitle}>
-          {data ? `${data.count} total` : ""}
-        </span>
+      <header className={headerStyles.header}>
+        <Link to="/services" className={headerStyles.back}>← services</Link>
+        <span className={headerStyles.route}>{repo}</span>
+        <span className={headerStyles.urn}>{serviceURN}</span>
+        <nav className={tabStyles.tabs}>
+          <Link to={`/services/${repo}/architecture`} className={tabStyles.tab}>
+            architecture
+          </Link>
+          <Link to={`/services/${repo}/endpoints`} className={`${tabStyles.tab} ${tabStyles.active}`}>
+            endpoints
+          </Link>
+        </nav>
       </header>
 
       <div className={pageStyles.toolbar}>
@@ -84,7 +105,7 @@ export function EndpointsPage() {
           return (
             <NodeRow
               key={n.urn}
-              to={`/endpoints/${n.urn}`}
+              to={`/services/${repo}/endpoints/${n.urn}`}
               tag={method}
               tagVariant={methodVariant(method)}
               primary={route}

@@ -174,8 +174,9 @@ func (d *decoder) appendCall(p CallPayload) {
 		TargetSymbol: p.CalleeExpression,
 		TargetURL:    p.TargetHint,
 	})
-	// Sidecar `calls.ts` documenta "Invokes Function→Call (sempre)" mas o
-	// emit ficou Go-side porque a URN do Call só existe aqui.
+	// Sidecar `calls.ts` documenta "Invokes Function→Call (sempre)" e
+	// "Uses Call→Framework (quando reconhecido)" mas ambos ficam Go-side
+	// porque a URN do Call só existe aqui (depende do ordinal).
 	now := d.cfg.ObservedAt
 	if now.IsZero() {
 		now = time.Now().UTC()
@@ -184,6 +185,13 @@ func (d *decoder) appendCall(p CallPayload) {
 	d.res.Invokes = append(d.res.Invokes, edge.Invokes{Base: edge.Base{
 		EdgeID: id, EdgeType: edge.TypeInvokes, FromURN: callerURN, ToURN: urn, EdgeMeta: d.edgeMeta(),
 	}})
+	if p.FrameworkName != "" {
+		fwURN := d.ensureFramework("npm", p.FrameworkName)
+		uid := edge.DeterministicID(urn, edge.TypeUses, fwURN, now)
+		d.res.Uses = append(d.res.Uses, edge.Uses{Base: edge.Base{
+			EdgeID: uid, EdgeType: edge.TypeUses, FromURN: urn, ToURN: fwURN, EdgeMeta: d.edgeMeta(),
+		}})
+	}
 }
 
 func mapCallKind(subkind string) node.CallKind {
@@ -261,6 +269,13 @@ func (d *decoder) appendVariable(p VariablePayload) {
 
 func (d *decoder) appendFramework(p FrameworkPayload) {
 	urn := node.NewFrameworkURN(p.Ecosystem, p.Name)
+	if d.seenFrameworks == nil {
+		d.seenFrameworks = map[node.URN]bool{}
+	}
+	if d.seenFrameworks[urn] {
+		return
+	}
+	d.seenFrameworks[urn] = true
 	d.res.Frameworks = append(d.res.Frameworks, node.Framework{
 		Base:          d.base(urn, node.KindFramework),
 		Ecosystem:     p.Ecosystem,
@@ -268,6 +283,27 @@ func (d *decoder) appendFramework(p FrameworkPayload) {
 		LatestVersion: p.LatestVersion,
 		IsDevOnly:     p.IsDevOnly,
 	})
+}
+
+// ensureFramework garante a presença de um Framework node em res.Frameworks.
+// Usado por Calls que detectam frameworks por padrão de chamada (axios.get,
+// globalThis.fetch, etc.) — alguns desses podem não estar em package.json
+// (ex: `fetch` global) mas ainda assim formam o destino de um `Uses` edge.
+func (d *decoder) ensureFramework(ecosystem, name string) node.URN {
+	urn := node.NewFrameworkURN(ecosystem, name)
+	if d.seenFrameworks == nil {
+		d.seenFrameworks = map[node.URN]bool{}
+	}
+	if d.seenFrameworks[urn] {
+		return urn
+	}
+	d.seenFrameworks[urn] = true
+	d.res.Frameworks = append(d.res.Frameworks, node.Framework{
+		Base:      d.base(urn, node.KindFramework),
+		Ecosystem: ecosystem,
+		Name:      name,
+	})
+	return urn
 }
 
 // appendEdge materializa edges cross-entidade emitidas pelo sidecar.

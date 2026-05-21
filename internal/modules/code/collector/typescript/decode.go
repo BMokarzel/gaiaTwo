@@ -13,9 +13,10 @@ import (
 // partir dos payloads NDJSON. O sidecar não repete `repo`/`runID`/
 // `observedAt` em cada evento — Go-side aplica.
 type decoder struct {
-	cfg       Config
-	res       Result
-	callerOrd map[node.URN]int
+	cfg            Config
+	res            Result
+	callerOrd      map[node.URN]int
+	seenFrameworks map[node.URN]bool // dedup Framework URNs (declared + inferred via Calls)
 }
 
 // decodeStream lê NDJSON do reader até `done` ou `error`, agregando

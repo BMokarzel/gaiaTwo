@@ -1,7 +1,7 @@
 import { Project, SourceFile, CallExpression, SyntaxKind, FunctionDeclaration, MethodDeclaration, Node } from "ts-morph";
 import * as path from "path";
 import { emit } from "../emit";
-import { CallPayload, EdgePayload } from "../proto";
+import { CallPayload } from "../proto";
 import { Service } from "./services";
 import { isWithinService } from "./functions";
 import { moduleNamespaceForFile } from "./modules";
@@ -16,8 +16,9 @@ import { moduleNamespaceForFile } from "./modules";
  *   - unresolved! : qualquer outra coisa
  *
  * Edges emitidas:
- *   - Invokes Function→Call (sempre)
- *   - Uses Call→Framework (quando reconhecido)
+ *   - Invokes Function→Call (sempre)  ← Go-side (precisa da Call URN)
+ *   - Uses Call→Framework (quando reconhecido)  ← Go-side (precisa da Call URN);
+ *     sidecar só propaga `framework_name` no CallPayload.
  *   - Targets Call→Function (quando in-process resolvido)
  */
 export function collectCalls(
@@ -65,16 +66,11 @@ export function collectCalls(
           subkind: classified.subkind,
           callee_expression: calleeText,
           target_hint: classified.hint,
+          framework_name: classified.frameworkName,
           location: { file: fileRel, line },
         };
         emit("call", payload);
         count++;
-
-        // Uses Framework — URN canônica (ver node.NewFrameworkURN).
-        if (classified.frameworkName) {
-          const fwURN = `urn:ce:code:_global:framework/npm!${classified.frameworkName}`;
-          emit("edge", { type: "Uses", from_urn: fnURN, to_urn: fwURN } as EdgePayload);
-        }
       });
     }
   }

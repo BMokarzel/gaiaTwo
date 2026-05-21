@@ -6,7 +6,8 @@
       "Bash(go get:*)",
       "Bash(npm run:*)",
       "Bash(go run:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(curl -s \"http://localhost:8080/v1/architecture/nodes?kind=endpoint&limit=2\")"
     ]
   }
 }

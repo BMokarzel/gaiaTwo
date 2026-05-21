@@ -1,15 +1,23 @@
 // Wrappers tipados sobre os endpoints `/v1/architecture/*` do backend.
 //
 // URNs do costEngine contêm `:` e `/` (e.g.
-// `urn:ce:code:acme:service/.`). Para usar como path segment passamos
-// o URN sem encode — o backend usa `{rest...}` (Go 1.22+), que aceita.
-// Apenas `?` e `#` precisam ser encodados se aparecerem (raríssimo).
+// `urn:ce:code:acme:service/.`). Precisam ser percent-encoded como path
+// segment porque:
+//   - Service URN termina em `/.` — `http.ServeMux` do Go (1.22+) faz
+//     path cleaning e strip de `/./`, corrompendo a URN.
+//   - Browsers também normalizam `/./` antes de enviar.
+// `encodeURIComponent` resolve ambos (encoda `/`, `.`, `:` etc.); o
+// servidor decoda após roteamento e o handler recebe a URN íntegra.
 
 import { apiGet } from "./client";
 import type { FlowResponse, NodeView, SearchResponse } from "./types";
 
+function encURN(urn: string): string {
+  return encodeURIComponent(urn);
+}
+
 export function getNode(urn: string, signal?: AbortSignal) {
-  return apiGet<NodeView>(`/v1/architecture/nodes/${urn}`, signal);
+  return apiGet<NodeView>(`/v1/architecture/nodes/${encURN(urn)}`, signal);
 }
 
 export function getNeighbors(
@@ -23,14 +31,14 @@ export function getNeighbors(
   if (opts?.edgeTypes?.length) q.set("edge_types", opts.edgeTypes.join(","));
   const qs = q.toString();
   return apiGet<{ edges: unknown[]; nodes: NodeView[] }>(
-    `/v1/architecture/nodes/${urn}/neighbors${qs ? `?${qs}` : ""}`,
+    `/v1/architecture/nodes/${encURN(urn)}/neighbors${qs ? `?${qs}` : ""}`,
     signal,
   );
 }
 
 export function getFlow(urn: string, depth?: number, signal?: AbortSignal) {
   const qs = depth ? `?depth=${depth}` : "";
-  return apiGet<FlowResponse>(`/v1/architecture/nodes/${urn}/flow${qs}`, signal);
+  return apiGet<FlowResponse>(`/v1/architecture/nodes/${encURN(urn)}/flow${qs}`, signal);
 }
 
 export function searchNodes(

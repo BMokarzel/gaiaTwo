@@ -61,9 +61,11 @@ export function ServicesPage() {
       <div className={pageStyles.list}>
         {filtered.map((n) => {
           const d = n.data as ServiceData;
+          const repo = d.repo ?? "";
           return (
             <NodeRow
               key={n.urn}
+              to={repo ? `/services/${repo}/architecture` : undefined}
               tag="svc"
               primary={d.repo ? `${d.repo} :: ${d.module_path ?? "."}` : n.urn}
               secondary={n.urn}

@@ -80,6 +80,7 @@ export interface CallPayload {
   subkind: "http!" | "db!" | "mq!" | "in-process" | "unresolved!";
   callee_expression: string;
   target_hint?: string;
+  framework_name?: string;
   location: SourceLocation;
 }
 
